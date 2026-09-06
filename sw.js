@@ -9,6 +9,7 @@ const SHELL = [
   "./js/config.js",
   "./js/db.js",
   "./js/google.js",
+  "./js/pdfExport.js",
   "./js/richtext.js",
   "./js/supabaseClient.js",
   "./js/vendor/supabase.esm.js",

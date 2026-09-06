@@ -1,9 +1,17 @@
-import { Notes, Folders, FlashcardSets, Quizzes } from "../db.js";
+import { Notes, Folders, FlashcardSets, Quizzes, Attachments } from "../db.js";
 import { supabase } from "../supabaseClient.js";
 import { AI_FUNCTION_NAME } from "../config.js";
 import { escapeHtml, openModal, confirmDialog, fmtDate } from "../ui.js";
 import { toast, toastError } from "../toast.js";
 import { createEditor } from "../richtext.js";
+import { exportNoteToPdf } from "../pdfExport.js";
+
+function fmtSize(bytes) {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
 
 const AREAS = [
   { id: "school", label: "Škola" },
@@ -148,7 +156,17 @@ async function openNoteEditor(container, noteId) {
        <button class="btn btn-sm" id="ai-flashcards">✨ Flashcards</button>
        <button class="btn btn-sm" id="ai-quiz">✨ Test</button>
        <button class="btn btn-sm" id="ai-summary">✨ Shrnutí</button>
+       <button class="btn btn-sm" id="export-pdf">📄 Export do PDF</button>
        <span class="faint" id="ai-status"></span>
+     </div>
+     <div style="margin-top:16px;">
+       <label>Přílohy</label>
+       ${
+         noteId
+           ? `<div class="list" id="attachments-list" style="margin-bottom:8px;"></div>
+              <input type="file" id="attachment-input" />`
+           : `<div class="faint">Nejdřív poznámku ulož, pak k ní budeš moct přidat soubory.</div>`
+       }
      </div>
      <div class="modal-actions">
        ${noteId ? `<button class="btn btn-danger" id="delete-note" style="margin-right:auto;">Smazat</button>` : ""}
@@ -159,6 +177,26 @@ async function openNoteEditor(container, noteId) {
   );
 
   const editor = createEditor(modalEl.querySelector("#note-editor-mount"), note.content);
+
+  modalEl.querySelector("#export-pdf").addEventListener("click", () => {
+    const title = modalEl.querySelector("#note-title").value.trim() || "Bez názvu";
+    exportNoteToPdf(title, editor.getHtml());
+  });
+
+  if (noteId) {
+    loadAttachments(modalEl, noteId);
+    modalEl.querySelector("#attachment-input").addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        await Attachments.upload(noteId, file);
+        e.target.value = "";
+        loadAttachments(modalEl, noteId);
+      } catch (err) {
+        toastError(err);
+      }
+    });
+  }
 
   modalEl.querySelector("#save-note").addEventListener("click", async () => {
     const title = modalEl.querySelector("#note-title").value.trim() || "Bez názvu";
@@ -213,6 +251,57 @@ async function openNoteEditor(container, noteId) {
       );
     })
   );
+}
+
+async function loadAttachments(modalEl, noteId) {
+  const box = modalEl.querySelector("#attachments-list");
+  if (!box) return;
+  try {
+    const files = await Attachments.list(noteId);
+    if (!files.length) {
+      box.innerHTML = `<div class="faint">Zatím žádné přílohy.</div>`;
+      return;
+    }
+    box.innerHTML = files
+      .map(
+        (f) => `<div class="list-item">
+          <div class="grow">
+            <div class="title truncate">📎 ${escapeHtml(f.file_name)}</div>
+            <div class="faint">${fmtSize(f.size_bytes)}</div>
+          </div>
+          <button type="button" class="btn btn-sm" data-download="${f.id}">Stáhnout</button>
+          <button type="button" class="btn btn-icon btn-ghost btn-sm" data-del-att="${f.id}">✕</button>
+        </div>`
+      )
+      .join("");
+    box.querySelectorAll("[data-download]").forEach((b) => {
+      const f = files.find((x) => x.id === b.dataset.download);
+      b.addEventListener("click", async () => {
+        try {
+          const url = await Attachments.getDownloadUrl(f.file_path);
+          window.open(url, "_blank");
+        } catch (e) {
+          toastError(e);
+        }
+      });
+    });
+    box.querySelectorAll("[data-del-att]").forEach((b) => {
+      const f = files.find((x) => x.id === b.dataset.delAtt);
+      b.addEventListener("click", async () => {
+        if (await confirmDialog(`Smazat přílohu "${f.file_name}"?`)) {
+          try {
+            await Attachments.remove(f);
+            loadAttachments(modalEl, noteId);
+          } catch (e) {
+            toastError(e);
+          }
+        }
+      });
+    });
+  } catch (e) {
+    box.innerHTML = `<div class="faint">Nepodařilo se načíst přílohy.</div>`;
+    toastError(e);
+  }
 }
 
 async function runAi(mode, editor, note, setStatus, onResult) {

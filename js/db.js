@@ -41,6 +41,49 @@ export const Notes = {
   },
 };
 
+export const Attachments = {
+  async list(noteId) {
+    const { data, error } = await supabase
+      .from("note_attachments")
+      .select("*")
+      .eq("note_id", noteId)
+      .order("created_at");
+    if (error) throw error;
+    return data;
+  },
+  async upload(noteId, file) {
+    const userId = await uid();
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const path = `${userId}/notes/${noteId}/${Date.now()}-${safeName}`;
+    const { error: upErr } = await supabase.storage.from("files").upload(path, file);
+    if (upErr) throw upErr;
+    const { data, error } = await supabase
+      .from("note_attachments")
+      .insert({
+        user_id: userId,
+        note_id: noteId,
+        file_path: path,
+        file_name: file.name,
+        mime_type: file.type || null,
+        size_bytes: file.size,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+  async getDownloadUrl(path) {
+    const { data, error } = await supabase.storage.from("files").createSignedUrl(path, 120);
+    if (error) throw error;
+    return data.signedUrl;
+  },
+  async remove(attachment) {
+    await supabase.storage.from("files").remove([attachment.file_path]);
+    const { error } = await supabase.from("note_attachments").delete().eq("id", attachment.id);
+    if (error) throw error;
+  },
+};
+
 export const Folders = {
   async list(area) {
     let q = supabase.from("folders").select("*").order("sort_order");
