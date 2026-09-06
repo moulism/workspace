@@ -37,9 +37,20 @@ Projekt `personal-workspace` je vytvořený a nastavený (tabulky, RLS politiky,
 edge funkce `ai-generate`). Nic tu není potřeba dělat, pokud nechceš něco měnit napřímo v
 [Supabase Dashboardu](https://supabase.com/dashboard/project/iccmtviewbfnsizobdzd).
 
-## 3) Google přihlášení + Kalendář/Gmail (musíš udělat ty)
+## 3) Přihlášení do appky
 
-Appka používá **jen jedno** Google přihlášení jak pro login, tak pro přístup ke Kalendáři a Gmailu (read-only).
+Appka teď podporuje dva způsoby přihlášení:
+
+- **Email magic link** — funguje hned bez jakéhokoli nastavování (Supabase má email login zapnutý
+  od začátku). Zadáš email, přijde ti odkaz, kliknutím se přihlásíš. Tohle použij, pokud chceš appku
+  vyzkoušet hned, nebo pokud Google/Kalendář/Gmail vůbec nepotřebuješ.
+- **Google** — o krok níž. Je potřeba jen pokud chceš propojení s Google Calendar / Gmail (appka to
+  jinak nijak nevynucuje).
+
+## 4) Google Kalendář/Gmail (volitelné, musíš udělat ty)
+
+Appka používá **jedno** Google přihlášení jak pro login, tak pro přístup ke Kalendáři a Gmailu (read-only).
+Pokud ti stačí email login z kroku 3, tenhle krok klidně přeskoč.
 
 1. Jdi do [Google Cloud Console](https://console.cloud.google.com/) → vytvoř nový projekt (nebo použij existující).
 2. **APIs & Services → Library** → zapni **Google Calendar API** a **Gmail API**.
@@ -61,7 +72,7 @@ Google přístupový token (pro Kalendář/Gmail) vydrží cca hodinu. Appka ho 
 (kvůli bezpečnosti se neukládá natrvalo) — když vyprší, stačí v **Nastavení → Google** kliknout na
 "Připojit / obnovit přístup".
 
-## 4) AI generování (flashcards, testy, shrnutí)
+## 5) AI generování (flashcards, testy, shrnutí)
 
 Potřebuješ vlastní [Anthropic API klíč](https://console.anthropic.com/settings/keys). Nastav ho jako
 secret pro edge funkci (klíč nikdy neopustí Supabase server, appka ho nikdy neuvidí):
@@ -74,7 +85,7 @@ npx supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
 
 Nebo přes Dashboard: **Edge Functions → ai-generate → Secrets → Add secret**.
 
-## 5) Instalace na telefon (PWA)
+## 6) Instalace na telefon (PWA)
 
 Appku otevři na telefonu v prohlížeči a zvol "Přidat na plochu" / "Add to Home Screen" — poběží
 jako samostatná appka s vlastní ikonou.

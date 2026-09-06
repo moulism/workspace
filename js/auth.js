@@ -35,6 +35,16 @@ export function signInWithGoogle() {
   });
 }
 
+/** Magic-link login: no password, no Google Cloud setup needed. Works out of
+ * the box because Supabase projects have the Email provider on by default. */
+export function signInWithEmail(email) {
+  const redirectTo = window.location.origin + window.location.pathname;
+  return supabase.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: redirectTo },
+  });
+}
+
 export async function signOut() {
   try { sessionStorage.removeItem(PROVIDER_TOKEN_KEY); sessionStorage.removeItem(PROVIDER_TOKEN_EXP_KEY); } catch {}
   return supabase.auth.signOut();

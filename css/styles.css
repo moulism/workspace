@@ -355,3 +355,5 @@ label { font-size: 12.5px; color: var(--text-muted); display: block; margin-bott
 .auth-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 34px; width: 100%; max-width: 380px; text-align: center; box-shadow: var(--shadow); }
 .auth-card h1 { font-size: 20px; margin: 4px 0 4px; }
 .auth-card p { color: var(--text-muted); font-size: 13.5px; margin-bottom: 20px; }
+.auth-divider { display: flex; align-items: center; gap: 10px; margin: 16px 0; color: var(--text-faint); font-size: 12px; }
+.auth-divider::before, .auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }

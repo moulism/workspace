@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { getSession, onAuthChange, signInWithGoogle, signOut } from "./auth.js";
+import { getSession, onAuthChange, signInWithGoogle, signInWithEmail, signOut } from "./auth.js";
 import { initTheme, cycleTheme } from "./theme.js";
 import { toastError } from "./toast.js";
 
@@ -33,8 +33,16 @@ function renderAuthScreen() {
       <div class="auth-card">
         <div class="logo" style="width:44px;height:44px;border-radius:12px;background:var(--accent);color:var(--accent-contrast);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;margin:0 auto 14px;">W</div>
         <h1>Workspace</h1>
-        <p>Tvůj osobní prostor na poznámky, úkoly, kalendář a další. Přihlas se přes Google.</p>
+        <p>Tvůj osobní prostor na poznámky, úkoly, kalendář a další.</p>
         <button class="btn btn-primary" id="google-signin" style="width:100%;justify-content:center;">Přihlásit se přes Google</button>
+        <div class="auth-divider"><span>nebo</span></div>
+        <form id="email-signin-form">
+          <input type="email" id="email-input" placeholder="tvuj@email.cz" required style="margin-bottom:8px;" />
+          <button class="btn" type="submit" style="width:100%;justify-content:center;">Poslat přihlašovací odkaz emailem</button>
+        </form>
+        <div class="faint hidden" id="email-sent-msg" style="margin-top:10px;">
+          Odkaz je na cestě — zkontroluj email a klikni na něj (může být ve spamu).
+        </div>
       </div>
     </div>`;
   document.getElementById("google-signin").addEventListener("click", async () => {
@@ -42,6 +50,22 @@ function renderAuthScreen() {
       await signInWithGoogle();
     } catch (e) {
       toastError(e);
+    }
+  });
+  document.getElementById("email-signin-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("email-input").value.trim();
+    if (!email) return;
+    const btn = e.target.querySelector("button");
+    btn.disabled = true;
+    try {
+      const { error } = await signInWithEmail(email);
+      if (error) throw error;
+      e.target.classList.add("hidden");
+      document.getElementById("email-sent-msg").classList.remove("hidden");
+    } catch (err) {
+      toastError(err);
+      btn.disabled = false;
     }
   });
 }
