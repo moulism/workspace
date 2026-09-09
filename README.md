@@ -5,15 +5,16 @@ Vanilla HTML/JS/CSS + Supabase (stejně jako tvoje ostatní appky). Žádný bui
 ## Co appka umí
 
 - Přehled/dashboard: hodiny, dnešní kalendář, úkoly po termínu, aktivní cíle, nepřečtené e-maily
-- Poznámky: sekce Škola / Práce / Osobní, složky, rich text (tučně, barvy, nadpisy, seznamy…), štítky, hledání
+- Poznámky: sekce Škola / Práce / Osobní, **předměty/složky s ikonou a barvou**, rich text (tučně, barvy, nadpisy, seznamy…), štítky, hledání, **volitelný termín (zkouška/odevzdání)** u poznámky, panel blížících se termínů
 - AI generování z poznámky: flashcards, test (kvíz), shrnutí — přes Supabase Edge Function + tvůj Anthropic klíč
-- Kalendář: měsíční pohled, kategorie (škola/práce/gym/osobní), filtrování, obousměrné propojení s Google Calendar
+- Kalendář: **Den / Týden / Měsíc / Rok** (přepínač jako v nativním kalendáři), kategorie (škola/práce/gym/osobní), filtrování, obousměrné propojení s Google Calendar, **automatické zobrazení školních termínů z Poznámek a úkolů s termínem přímo v kalendáři**
+- **Successful Journal** — 90denní deník odpovědnosti: ranní stránka (3 priority, vděčnost, záměr dne, habit tracker), večerní stránka (výhry, ponaučení, zaměření na zítřek, hodnocení dne), přehled celého 90denního cyklu a historie cyklů
 - Gmail: zobrazení nepřečtených zpráv na dashboardu (read-only)
 - Gym: log tréninků, cviky, propojení s kalendářem, statistiky
 - Jídelníček + recepty: denní log jídel s makry, knihovna receptů, výběr receptu do jídelníčku
 - Úkoly + nákupní seznam
 - Cíle s progress barem
-- Deník s náladou
+- Deník s náladou (samostatně od Successful Journal)
 - Tmavý/světlý/systémový motiv, filtrování všude, responzivní i na mobilu, instalovatelné jako PWA
 
 ## 1) Nasazení na GitHub Pages
@@ -31,11 +32,16 @@ git push -u origin main
 V nastavení repa: **Settings → Pages → Source: Deploy from branch → main / (root)**.
 Appka pak poběží na `https://<tvuj-ucet>.github.io/<repo>/`.
 
-## 2) Supabase backend (už hotovo)
+## 2) Supabase backend
 
 Projekt `personal-workspace` je vytvořený a nastavený (tabulky, RLS politiky, storage bucket `files`,
 edge funkce `ai-generate`). Nic tu není potřeba dělat, pokud nechceš něco měnit napřímo v
 [Supabase Dashboardu](https://supabase.com/dashboard/project/iccmtviewbfnsizobdzd).
+
+Nově přidané tabulky (migrace `successful_journal_and_school_calendar_link`, aplikovaná přímo v projektu):
+`sj_cycles`, `sj_habits`, `sj_entries`, `sj_habit_logs` (Successful Journal) a nové sloupce
+`folders.icon` + `notes.due_date` (ikony předmětů a termíny poznámek). RLS politiky mají stejný vzor
+jako zbytek appky (`user_id = auth.uid()`).
 
 ## 3) Přihlášení do appky
 
@@ -90,6 +96,32 @@ Nebo přes Dashboard: **Edge Functions → ai-generate → Secrets → Add secre
 Appku otevři na telefonu v prohlížeči a zvol "Přidat na plochu" / "Add to Home Screen" — poběží
 jako samostatná appka s vlastní ikonou.
 
+## Successful Journal — jak to funguje
+
+Sekce vychází z konceptu 90denního "accountability" deníku (vlastní/originální texty a prompty,
+appka nekopíruje žádný konkrétní fyzický produkt):
+
+1. Založíš **nový 90denní cyklus** — název, vize/zaměření, pár cílů, a sadu návyků, které chceš
+   sledovat (např. 🏋️ Trénink, 📖 Čtení, 💧 Voda).
+2. Každý den vyplníš **ranní stránku** (3 priority, za co jsi vděčný, dnešní záměr, zaškrtneš návyky)
+   a **večerní stránku** (co se povedlo, co ses naučil, zaměření na zítra, hodnocení dne 1–5 ★).
+3. V **Přehledu 90 dní** vidíš celý cyklus jako mřížku — barva podle hodnocení dne — plus statistiky
+   a plnění jednotlivých návyků.
+4. Cyklus můžeš kdykoliv **dokončit** nebo založit nový — historie zůstává v **Historii cyklů**.
+
+## Poznámky → předměty a propojení s kalendářem
+
+- V sekci **Škola** teď "složka" = **předmět**: má vlastní ikonu (emoji) a barvu, dá se upravit/smazat
+  přímo z panelu vlevo (ikonka ✎ při najetí myší).
+- Poznámka může mít volitelný **termín** (zkouška, odevzdání) — zobrazí se jako štítek na kartě
+  poznámky, v panelu "Blížící se termíny" nahoře v Poznámkách, a **automaticky i v Kalendáři**
+  (ikona 🎓) na daný den, spolu s nesplněnými úkoly s termínem (ikona ✓). Kliknutím na tyto položky
+  v kalendáři se otevře náhled s odkazem zpět do Poznámek/Úkolů.
+
+## Instalace na telefon (PWA)
+
+Appku otevři na telefonu v prohlížeči a zvol "Přidat na plochu" / "Add to Home Screen".
+
 ## Struktura projektu
 
 ```
@@ -100,12 +132,12 @@ css/styles.css
 js/config.js            – Supabase URL/klíč (veřejné, chráněné RLS)
 js/supabaseClient.js
 js/auth.js              – Google přihlášení
-js/db.js                – CRUD helpery pro všechny tabulky
+js/db.js                – CRUD helpery pro všechny tabulky (vč. Successful Journal)
 js/google.js            – volání Google Calendar/Gmail API
 js/richtext.js          – jednoduchý rich-text editor
 js/theme.js, ui.js, toast.js
 js/app.js               – router + app shell
-js/views/*.js           – jednotlivé sekce appky
+js/views/*.js           – jednotlivé sekce appky (vč. nového views/journal.js)
 ```
 
 Databázové schéma i edge funkce jsou nasazené přímo v Supabase projektu `personal-workspace`

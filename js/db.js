@@ -10,11 +10,25 @@ export async function currentUserId() {
 
 export const Notes = {
   async list({ area, folderId, search, tag } = {}) {
-    let q = supabase.from("notes").select("*, folders(name,color)").order("pinned", { ascending: false }).order("updated_at", { ascending: false });
+    let q = supabase.from("notes").select("*, folders(name,color,icon)").order("pinned", { ascending: false }).order("updated_at", { ascending: false });
     if (area) q = q.eq("area", area);
     if (folderId) q = q.eq("folder_id", folderId);
     if (tag) q = q.contains("tags", [tag]);
     if (search) q = q.ilike("title", `%${search}%`);
+    const { data, error } = await q;
+    if (error) throw error;
+    return data;
+  },
+  async listUpcoming({ area, from, to, limit = 20 } = {}) {
+    let q = supabase
+      .from("notes")
+      .select("*, folders(name,color,icon)")
+      .not("due_date", "is", null)
+      .order("due_date", { ascending: true })
+      .limit(limit);
+    if (area) q = q.eq("area", area);
+    if (from) q = q.gte("due_date", from);
+    if (to) q = q.lte("due_date", to);
     const { data, error } = await q;
     if (error) throw error;
     return data;
@@ -98,6 +112,11 @@ export const Folders = {
     if (error) throw error;
     return data;
   },
+  async update(id, fields) {
+    const { data, error } = await supabase.from("folders").update(fields).eq("id", id).select().single();
+    if (error) throw error;
+    return data;
+  },
   async remove(id) {
     const { error } = await supabase.from("folders").delete().eq("id", id);
     if (error) throw error;
@@ -112,6 +131,16 @@ export const Todos = {
     if (from) q = q.gte("due_date", from);
     if (to) q = q.lte("due_date", to);
     const { data, error } = await q;
+    if (error) throw error;
+    return data;
+  },
+  async listRange(from, to) {
+    const { data, error } = await supabase
+      .from("todos")
+      .select("*")
+      .gte("due_date", from)
+      .lte("due_date", to)
+      .order("due_date", { ascending: true });
     if (error) throw error;
     return data;
   },
@@ -405,5 +434,133 @@ export const Quizzes = {
   async remove(id) {
     const { error } = await supabase.from("quizzes").delete().eq("id", id);
     if (error) throw error;
+  },
+};
+
+// ===================== Successful Journal =====================
+// 90denní accountability deník: cykly -> denní ranní/večerní stránky + habit tracker.
+
+export const JournalCycles = {
+  async list() {
+    const { data, error } = await supabase.from("sj_cycles").select("*").order("start_date", { ascending: false });
+    if (error) throw error;
+    return data;
+  },
+  async getActive() {
+    const { data, error } = await supabase
+      .from("sj_cycles")
+      .select("*")
+      .eq("status", "active")
+      .order("start_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+  async get(id) {
+    const { data, error } = await supabase.from("sj_cycles").select("*").eq("id", id).single();
+    if (error) throw error;
+    return data;
+  },
+  async create(fields) {
+    const user_id = await uid();
+    const { data, error } = await supabase.from("sj_cycles").insert({ user_id, ...fields }).select().single();
+    if (error) throw error;
+    return data;
+  },
+  async update(id, fields) {
+    const { data, error } = await supabase.from("sj_cycles").update(fields).eq("id", id).select().single();
+    if (error) throw error;
+    return data;
+  },
+  async remove(id) {
+    const { error } = await supabase.from("sj_cycles").delete().eq("id", id);
+    if (error) throw error;
+  },
+};
+
+export const JournalHabits = {
+  async listByCycle(cycleId) {
+    const { data, error } = await supabase.from("sj_habits").select("*").eq("cycle_id", cycleId).order("sort_order");
+    if (error) throw error;
+    return data;
+  },
+  async create(fields) {
+    const user_id = await uid();
+    const { data, error } = await supabase.from("sj_habits").insert({ user_id, ...fields }).select().single();
+    if (error) throw error;
+    return data;
+  },
+  async update(id, fields) {
+    const { data, error } = await supabase.from("sj_habits").update(fields).eq("id", id).select().single();
+    if (error) throw error;
+    return data;
+  },
+  async remove(id) {
+    const { error } = await supabase.from("sj_habits").delete().eq("id", id);
+    if (error) throw error;
+  },
+};
+
+export const JournalEntries = {
+  async getByDate(date) {
+    const { data, error } = await supabase.from("sj_entries").select("*").eq("entry_date", date).maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+  async listByCycle(cycleId) {
+    const { data, error } = await supabase
+      .from("sj_entries")
+      .select("*")
+      .eq("cycle_id", cycleId)
+      .order("entry_date", { ascending: true });
+    if (error) throw error;
+    return data;
+  },
+  async upsert(date, fields) {
+    const user_id = await uid();
+    const { data, error } = await supabase
+      .from("sj_entries")
+      .upsert({ user_id, entry_date: date, ...fields }, { onConflict: "user_id,entry_date" })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+};
+
+export const JournalHabitLogs = {
+  async listForDate(date) {
+    const { data, error } = await supabase.from("sj_habit_logs").select("*").eq("log_date", date);
+    if (error) throw error;
+    return data;
+  },
+  async listForRange(from, to) {
+    const { data, error } = await supabase
+      .from("sj_habit_logs")
+      .select("*")
+      .gte("log_date", from)
+      .lte("log_date", to);
+    if (error) throw error;
+    return data;
+  },
+  async toggle(habitId, date, done) {
+    const user_id = await uid();
+    if (!done) {
+      const { error } = await supabase
+        .from("sj_habit_logs")
+        .delete()
+        .eq("habit_id", habitId)
+        .eq("log_date", date);
+      if (error) throw error;
+      return null;
+    }
+    const { data, error } = await supabase
+      .from("sj_habit_logs")
+      .upsert({ user_id, habit_id: habitId, log_date: date, done: true }, { onConflict: "user_id,habit_id,log_date" })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   },
 };

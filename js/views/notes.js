@@ -1,7 +1,7 @@
 import { Notes, Folders, FlashcardSets, Quizzes, Attachments } from "../db.js";
 import { supabase } from "../supabaseClient.js";
 import { AI_FUNCTION_NAME } from "../config.js";
-import { escapeHtml, openModal, confirmDialog, fmtDate } from "../ui.js";
+import { escapeHtml, openModal, confirmDialog, fmtDate, todayIso } from "../ui.js";
 import { toast, toastError } from "../toast.js";
 import { createEditor } from "../richtext.js";
 import { exportNoteToPdf } from "../pdfExport.js";
@@ -19,7 +19,29 @@ const AREAS = [
   { id: "personal", label: "Osobní" },
 ];
 
+const FOLDER_COLORS = ["#4f46e5", "#0f766e", "#dc4c3f", "#c98a1f", "#2f9e5b", "#a21caf", "#0284c7", "#6b6a68"];
+const FOLDER_ICONS = ["📁", "📐", "🧪", "📚", "🖥️", "🌍", "➗", "⚖️", "🎨", "🗣️", "📊", "🏛️"];
+
 let state = { area: "school", folderId: null, search: "", tab: "notes" };
+
+function dueBadge(dueDate) {
+  if (!dueDate) return "";
+  const today = todayIso();
+  const diffDays = Math.round((new Date(dueDate) - new Date(today)) / 86400000);
+  let cls = "pill";
+  let label = fmtDate(dueDate);
+  if (diffDays < 0) {
+    cls += " pill-danger";
+    label = `po termínu · ${fmtDate(dueDate)}`;
+  } else if (diffDays === 0) {
+    cls += " pill-danger";
+    label = `dnes`;
+  } else if (diffDays <= 3) {
+    cls += " pill-warning";
+    label = `za ${diffDays} dny`;
+  }
+  return `<span class="${cls}">⏰ ${label}</span>`;
+}
 
 export async function render(container) {
   container.innerHTML = `
@@ -35,8 +57,9 @@ export async function render(container) {
         <button class="btn btn-primary" id="new-note-btn">+ Nová poznámka</button>
       </div>
     </div>
+    <div id="upcoming-panel"></div>
     <div style="display:flex;gap:18px;align-items:flex-start;">
-      <div class="card" style="width:190px;flex-shrink:0;" id="folder-panel"></div>
+      <div class="card" style="width:210px;flex-shrink:0;" id="folder-panel"></div>
       <div style="flex:1;min-width:0;" id="notes-main"></div>
     </div>
   `;
@@ -60,9 +83,45 @@ export async function render(container) {
   });
   container.querySelector("#new-note-btn").addEventListener("click", () => openNoteEditor(container));
 
+  await renderUpcomingPanel(container);
   await renderFolderPanel(container);
   if (state.tab === "study") await renderStudyTab(container);
   else await loadNotesList(container);
+}
+
+async function renderUpcomingPanel(container) {
+  const panel = container.querySelector("#upcoming-panel");
+  if (state.area !== "school") {
+    panel.innerHTML = "";
+    return;
+  }
+  try {
+    const from = todayIso();
+    const to = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+    const notes = await Notes.listUpcoming({ area: "school", from, to, limit: 6 });
+    if (!notes.length) {
+      panel.innerHTML = "";
+      return;
+    }
+    panel.innerHTML = `
+      <div class="card" style="margin-bottom:16px;">
+        <div class="faint" style="margin-bottom:8px;">BLÍŽÍCÍ SE TERMÍNY (14 DNÍ)</div>
+        <div class="toolbar" style="gap:8px;flex-wrap:wrap;">
+          ${notes
+            .map(
+              (n) => `<div class="pill" data-open-note="${n.id}" style="cursor:pointer;gap:6px;">
+                ${n.folders?.icon ? n.folders.icon + " " : ""}${escapeHtml(n.title)} · ${dueBadge(n.due_date)}
+              </div>`
+            )
+            .join("")}
+        </div>
+      </div>`;
+    panel.querySelectorAll("[data-open-note]").forEach((p) =>
+      p.addEventListener("click", () => openNoteEditor(container, p.dataset.openNote))
+    );
+  } catch (e) {
+    panel.innerHTML = "";
+  }
 }
 
 async function renderFolderPanel(container) {
@@ -70,39 +129,119 @@ async function renderFolderPanel(container) {
   try {
     const folders = await Folders.list(state.area);
     panel.innerHTML = `
-      <div class="faint" style="margin-bottom:8px;">SLOŽKY</div>
+      <div class="faint" style="margin-bottom:8px;">${state.area === "school" ? "PŘEDMĚTY" : "SLOŽKY"}</div>
       <div class="nav-item ${!state.folderId ? "active" : ""}" data-folder="">Vše</div>
       ${folders
         .map(
-          (f) => `<div class="nav-item ${state.folderId === f.id ? "active" : ""}" data-folder="${f.id}">
-            <span class="dot" style="background:${f.color || "#888"}"></span> ${escapeHtml(f.name)}
+          (f) => `<div class="folder-row ${state.folderId === f.id ? "active" : ""}" data-folder="${f.id}">
+            <span class="folder-row-main">
+              ${f.icon ? `<span>${escapeHtml(f.icon)}</span>` : `<span class="dot" style="background:${f.color || "#888"}"></span>`}
+              <span class="truncate">${escapeHtml(f.name)}</span>
+            </span>
+            <button type="button" class="folder-edit-btn" data-edit-folder="${f.id}" title="Upravit">✎</button>
           </div>`
         )
         .join("")}
-      <button class="btn btn-ghost btn-sm" id="add-folder-btn" style="margin-top:8px;width:100%;">+ Složka</button>
+      <button class="btn btn-ghost btn-sm" id="add-folder-btn" style="margin-top:8px;width:100%;">+ ${state.area === "school" ? "Předmět" : "Složka"}</button>
     `;
-    panel.querySelectorAll("[data-folder]").forEach((n) =>
-      n.addEventListener("click", () => {
+    panel.querySelectorAll(".folder-row").forEach((n) =>
+      n.addEventListener("click", (ev) => {
+        if (ev.target.closest("[data-edit-folder]")) return;
         state.folderId = n.dataset.folder || null;
         loadNotesList(container);
-        panel.querySelectorAll("[data-folder]").forEach((x) => x.classList.remove("active"));
+        panel.querySelectorAll(".folder-row, .nav-item[data-folder]").forEach((x) => x.classList.remove("active"));
         n.classList.add("active");
       })
     );
-    panel.querySelector("#add-folder-btn").addEventListener("click", () => addFolder(container));
+    panel.querySelector('[data-folder=""]').addEventListener("click", () => {
+      state.folderId = null;
+      loadNotesList(container);
+      panel.querySelectorAll(".folder-row, .nav-item[data-folder]").forEach((x) => x.classList.remove("active"));
+      panel.querySelector('[data-folder=""]').classList.add("active");
+    });
+    panel.querySelectorAll("[data-edit-folder]").forEach((b) =>
+      b.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const folder = folders.find((f) => f.id === b.dataset.editFolder);
+        openFolderModal(container, folder);
+      })
+    );
+    panel.querySelector("#add-folder-btn").addEventListener("click", () => openFolderModal(container));
   } catch (e) {
     toastError(e);
   }
 }
 
-async function addFolder(container) {
-  const name = prompt("Název složky:");
-  if (!name) return;
-  try {
-    await Folders.create({ area: state.area, name });
-    render(container);
-  } catch (e) {
-    toastError(e);
+async function openFolderModal(container, folder) {
+  const isNew = !folder;
+  const isSchool = state.area === "school";
+  const { el: modalEl, close } = openModal(`
+    <div class="modal-header"><h3>${isNew ? (isSchool ? "Nový předmět" : "Nová složka") : (isSchool ? "Upravit předmět" : "Upravit složku")}</h3><button class="btn btn-icon btn-ghost" data-close>✕</button></div>
+    <div class="field"><label>Název</label><input type="text" id="folder-name" value="${escapeHtml(folder?.name || "")}" placeholder="${isSchool ? "např. Matematika" : "Název"}" /></div>
+    <div class="field">
+      <label>Ikona (emoji, nepovinné)</label>
+      <input type="text" id="folder-icon" value="${escapeHtml(folder?.icon || "")}" placeholder="📐" style="width:90px;margin-bottom:6px;" />
+      <div class="toolbar" style="gap:5px;">
+        ${FOLDER_ICONS.map((ic) => `<button type="button" class="btn btn-icon btn-sm" data-pick-icon="${ic}">${ic}</button>`).join("")}
+      </div>
+    </div>
+    <div class="field">
+      <label>Barva</label>
+      <div class="toolbar" id="folder-color-swatches" style="gap:6px;">
+        ${FOLDER_COLORS.map(
+          (c) => `<button type="button" class="color-swatch ${folder?.color === c ? "selected" : ""}" data-color="${c}" style="background:${c};"></button>`
+        ).join("")}
+      </div>
+      <input type="hidden" id="folder-color" value="${folder?.color || FOLDER_COLORS[0]}" />
+    </div>
+    <div class="modal-actions">
+      ${!isNew ? `<button class="btn btn-danger" id="folder-delete" style="margin-right:auto;">Smazat</button>` : ""}
+      <button class="btn" data-close>Zrušit</button>
+      <button class="btn btn-primary" id="folder-save">Uložit</button>
+    </div>
+  `);
+
+  modalEl.querySelectorAll("[data-pick-icon]").forEach((b) =>
+    b.addEventListener("click", () => (modalEl.querySelector("#folder-icon").value = b.dataset.pickIcon))
+  );
+  modalEl.querySelectorAll("[data-color]").forEach((b) =>
+    b.addEventListener("click", () => {
+      modalEl.querySelector("#folder-color").value = b.dataset.color;
+      modalEl.querySelectorAll("[data-color]").forEach((x) => x.classList.toggle("selected", x === b));
+    })
+  );
+
+  modalEl.querySelector("#folder-save").addEventListener("click", async () => {
+    const name = modalEl.querySelector("#folder-name").value.trim();
+    if (!name) return;
+    const fields = {
+      name,
+      icon: modalEl.querySelector("#folder-icon").value.trim() || null,
+      color: modalEl.querySelector("#folder-color").value,
+    };
+    try {
+      if (isNew) await Folders.create({ area: state.area, ...fields });
+      else await Folders.update(folder.id, fields);
+      close();
+      render(container);
+    } catch (e) {
+      toastError(e);
+    }
+  });
+
+  if (!isNew) {
+    modalEl.querySelector("#folder-delete").addEventListener("click", async () => {
+      if (await confirmDialog(`Smazat "${folder.name}"? Poznámky uvnitř zůstanou, jen ztratí přiřazení.`)) {
+        try {
+          await Folders.remove(folder.id);
+          if (state.folderId === folder.id) state.folderId = null;
+          close();
+          render(container);
+        } catch (e) {
+          toastError(e);
+        }
+      }
+    });
   }
 }
 
@@ -119,11 +258,17 @@ async function loadNotesList(container) {
       .map(
         (n) => `<div class="card note-card" data-id="${n.id}" style="cursor:pointer;">
           <div style="display:flex;justify-content:space-between;gap:8px;">
-            <div class="title truncate" style="font-weight:600;">${n.pinned ? "📌 " : ""}${escapeHtml(n.title)}</div>
-            <div class="faint">${fmtDate(n.updated_at)}</div>
+            <div class="title truncate" style="font-weight:600;">
+              ${n.pinned ? "📌 " : ""}${n.folders?.icon ? n.folders.icon + " " : ""}${escapeHtml(n.title)}
+            </div>
+            <div class="faint" style="white-space:nowrap;">${fmtDate(n.updated_at)}</div>
           </div>
           <div class="faint truncate" style="margin-top:6px;max-height:40px;overflow:hidden;">${escapeHtml((n.content || "").replace(/<[^>]+>/g, " ")).slice(0, 140)}</div>
-          ${n.tags?.length ? `<div style="margin-top:8px;display:flex;gap:5px;flex-wrap:wrap;">${n.tags.map((t) => `<span class="pill">#${escapeHtml(t)}</span>`).join("")}</div>` : ""}
+          <div style="margin-top:8px;display:flex;gap:5px;flex-wrap:wrap;align-items:center;">
+            ${n.folders?.name ? `<span class="pill">${escapeHtml(n.folders.name)}</span>` : ""}
+            ${dueBadge(n.due_date)}
+            ${n.tags?.length ? n.tags.map((t) => `<span class="pill">#${escapeHtml(t)}</span>`).join("") : ""}
+          </div>
         </div>`
       )
       .join("")}</div>`;
@@ -139,13 +284,31 @@ async function openNoteEditor(container, noteId) {
         toastError(e);
         return null;
       })
-    : { title: "", content: "", tags: [], area: state.area, folder_id: state.folderId, pinned: false };
+    : { title: "", content: "", tags: [], area: state.area, folder_id: state.folderId, pinned: false, due_date: null };
   if (!note) return;
+
+  let folders = [];
+  try {
+    folders = await Folders.list(note.area);
+  } catch {}
 
   const { el: modalEl, close } = openModal(
     `<div class="modal-header">
        <input type="text" id="note-title" placeholder="Název poznámky" style="font-size:17px;font-weight:600;border:none;padding:4px 0;" value="${escapeHtml(note.title)}" />
        <button class="btn btn-icon btn-ghost" data-close>✕</button>
+     </div>
+     <div class="row" style="margin-bottom:10px;">
+       <div class="field" style="margin-bottom:0;">
+         <label>${note.area === "school" ? "Předmět" : "Složka"}</label>
+         <select id="note-folder">
+           <option value="">— bez ${note.area === "school" ? "předmětu" : "složky"} —</option>
+           ${folders.map((f) => `<option value="${f.id}" ${note.folder_id === f.id ? "selected" : ""}>${f.icon ? f.icon + " " : ""}${escapeHtml(f.name)}</option>`).join("")}
+         </select>
+       </div>
+       <div class="field" style="margin-bottom:0;">
+         <label>${note.area === "school" ? "Termín / zkouška" : "Termín"} (nepovinné)</label>
+         <input type="date" id="note-due" value="${note.due_date || ""}" />
+       </div>
      </div>
      <div id="note-editor-mount"></div>
      <div class="field" style="margin-top:10px;">
@@ -205,7 +368,14 @@ async function openNoteEditor(container, noteId) {
       .value.split(",")
       .map((t) => t.trim())
       .filter(Boolean);
-    const fields = { title, content: editor.getHtml(), tags, area: note.area, folder_id: note.folder_id };
+    const fields = {
+      title,
+      content: editor.getHtml(),
+      tags,
+      area: note.area,
+      folder_id: modalEl.querySelector("#note-folder").value || null,
+      due_date: modalEl.querySelector("#note-due").value || null,
+    };
     try {
       if (noteId) await Notes.update(noteId, fields);
       else await Notes.create(fields);
