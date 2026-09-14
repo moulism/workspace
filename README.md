@@ -143,3 +143,38 @@ js/views/*.js           – jednotlivé sekce appky (vč. nového views/journal.
 Databázové schéma i edge funkce jsou nasazené přímo v Supabase projektu `personal-workspace`
 (id `iccmtviewbfnsizobdzd`) — v repu žádné SQL migrace nejsou potřeba, ale kdybys appku chtěl
 znovu nasadit odjinud, schéma najdeš v historii migrací v Supabase Dashboardu.
+
+## Novinky (aktualizace září 2026)
+
+- **Vzhled**: animovaný sidebar (sjíždějící aktivní pilulka, sbalitelný na
+  desktopu), na mobilu spodní navigační lišta místo ikonek nalevo, plynulé
+  přechody mezi sekcemi, animace modálů/toastů, opravené hamburger menu.
+  Ikona appky je teď z obrázku, co jsi poslal (`icons/icon-192.png`,
+  `icon-512.png`, `icon-maskable-512.png`).
+- **Kalendář**: události se teď můžou **opakovat** (denně/týdně/měsíčně,
+  vlastní interval, dny v týdnu, volitelné "opakovat do"). Událost jde
+  propojit s **předmětem/složkou** a přímo z ní jedním klikem založit
+  poznámku, která se rovnou zařadí do správné složky v Poznámkách.
+- **Poznámky**: v editoru je teď zaškrtávací seznam (zkratka `[] ` na
+  začátku řádku, jako v Notion) a oddělovač. Kromě PDF exportu je nové
+  tlačítko **„Export pro kamarády"**, které stáhne poznámku jako samostatný
+  `.html` soubor.
+- **Nákupní seznam**: přepínání mezi seznamy přes výběr (ne přepisování
+  textu), položky jdou seskupit podle kategorie, jednoduchá úprava položky
+  kliknutím, a položky přidané z receptu mají vazbu na daný recept.
+- **Recepty**: nová záložka **„✨ Objevit recepty"** — stáhne pár nápadů
+  z otevřené databáze [TheMealDB](https://www.themealdb.com/), s odhadem
+  doby dne (snídaně/oběd-večeře/svačina) a obtížnosti, kompletním seznamem
+  surovin a tlačítkem na přidání do nákupního seznamu nebo uložení receptu.
+- **Finance**: nová sekce v menu, postavená na Supabase (`finance_transactions`,
+  `finance_categories`) místo `localStorage` — takže na rozdíl od původního
+  samostatného `FINANCE/finance.html` teď data vidíš na všech zařízeních.
+  Grafy (rok/kategorie/dny v týdnu) běží přes Chart.js stejně jako předtím.
+
+Databázové změny (viz Supabase Dashboard → migrace): `calendar_events` má
+nové sloupce `folder_id` a `recurrence` (jsonb), `shopping_items` má
+`source_recipe_id`, `recipes` má sloupce pro recepty z internetu
+(`image_url`, `source`, `external_id`, `category`, `area`, `meal_time`,
+`difficulty`, `prep_minutes`), a přibyly tabulky `finance_categories` +
+`finance_transactions` — všechny se stejnou RLS politikou (`user_id =
+auth.uid()`) jako zbytek appky.
