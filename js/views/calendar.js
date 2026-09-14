@@ -466,16 +466,25 @@ async function openEventModal(container, dateIso, evt) {
   const endTime = evt && evt.end_at && !evt.all_day ? new Date(evt.end_at).toTimeString().slice(0, 5) : "10:00";
   const rec = evt?.recurrence || null;
   let folders = await loadFoldersForCat(evt?.category || "school");
+  let itemType = "event";
 
   const { el: modalEl, close } = openModal(
-    `<div class="modal-header"><h3>${isNew ? "Nová událost" : "Upravit událost"}</h3><button class="btn btn-icon btn-ghost" data-close>✕</button></div>
+    `<div class="modal-header"><h3 id="ev-modal-title">${isNew ? "Nová událost" : "Upravit událost"}</h3><button class="btn btn-icon btn-ghost" data-close>✕</button></div>
+    ${
+      isNew
+        ? `<div class="seg" id="ev-type-seg" style="margin-bottom:14px;">
+             <button type="button" class="seg-btn active" data-type="event">📅 Událost</button>
+             <button type="button" class="seg-btn" data-type="task">✅ Úkol</button>
+           </div>`
+        : ""
+    }
     ${evt?._isRecurring || rec ? `<div class="faint" style="margin-bottom:10px;">↻ Opakující se událost — úpravy a smazání se týkají celé série.</div>` : ""}
     <div class="field"><label>Název</label><input type="text" id="ev-title" value="${escapeHtml(evt?.title || "")}" /></div>
     <div class="row">
-      <div class="field"><label>Kategorie</label>
+      <div class="field"><label id="ev-cat-label">Kategorie</label>
         <select id="ev-cat">${CATS.map((c) => `<option value="${c.id}" ${evt?.category === c.id ? "selected" : ""}>${c.label}</option>`).join("")}</select>
       </div>
-      <div class="field" id="ev-folder-field">
+      <div class="field event-only-field" id="ev-folder-field">
         <label id="ev-folder-label">Předmět / složka</label>
         <select id="ev-folder">
           <option value="">— žádný —</option>
@@ -483,38 +492,49 @@ async function openEventModal(container, dateIso, evt) {
         </select>
       </div>
     </div>
-    <div class="row">
+    <div class="row event-only-field" id="ev-allday-row">
       <div class="field"><label><input type="checkbox" id="ev-allday" ${evt?.all_day ? "checked" : ""} style="width:auto;margin-right:6px;" />Celý den</label></div>
     </div>
     <div class="row">
-      <div class="field"><label>Datum od</label><input type="date" id="ev-start-date" value="${startDate}" /></div>
-      <div class="field time-field"><label>Čas od</label><input type="time" id="ev-start-time" value="${startTime}" /></div>
+      <div class="field"><label id="ev-start-date-label">Datum od</label><input type="date" id="ev-start-date" value="${startDate}" /></div>
+      <div class="field time-field event-only-field" id="ev-start-time-field"><label>Čas od</label><input type="time" id="ev-start-time" value="${startTime}" /></div>
     </div>
-    <div class="row">
+    <div class="row event-only-field" id="ev-end-row">
       <div class="field"><label>Datum do</label><input type="date" id="ev-end-date" value="${evt?.end_at ? evt.end_at.slice(0, 10) : startDate}" /></div>
       <div class="field time-field"><label>Čas do</label><input type="time" id="ev-end-time" value="${endTime}" /></div>
     </div>
-    <div class="field"><label>Místo</label><input type="text" id="ev-location" value="${escapeHtml(evt?.location || "")}" /></div>
+    <div class="field event-only-field" id="ev-location-field"><label>Místo</label><input type="text" id="ev-location" value="${escapeHtml(evt?.location || "")}" /></div>
     <div class="field"><label>Poznámka</label><textarea id="ev-desc" rows="2">${escapeHtml(evt?.description || "")}</textarea></div>
 
-    <div class="field">
-      <label>Opakování</label>
-      <select id="ev-recur-freq">
-        <option value="none">Neopakuje se</option>
-        <option value="daily" ${rec?.freq === "daily" ? "selected" : ""}>Denně</option>
-        <option value="weekly" ${rec?.freq === "weekly" ? "selected" : ""}>Týdně</option>
-        <option value="monthly" ${rec?.freq === "monthly" ? "selected" : ""}>Měsíčně</option>
+    <div class="field task-only-field hidden" id="ev-priority-field">
+      <label>Priorita</label>
+      <select id="ev-priority">
+        <option value="low">Nízká</option>
+        <option value="medium" selected>Střední</option>
+        <option value="high">Vysoká</option>
       </select>
     </div>
-    <div id="ev-recur-extra" class="hidden">
-      <div class="row">
-        <div class="field"><label>Interval (každých N)</label><input type="number" id="ev-recur-interval" min="1" value="${rec?.interval || 1}" /></div>
-        <div class="field"><label>Opakovat do (nepovinné)</label><input type="date" id="ev-recur-until" value="${rec?.until || ""}" /></div>
+
+    <div class="event-only-field" id="ev-recur-section">
+      <div class="field">
+        <label>Opakování</label>
+        <select id="ev-recur-freq">
+          <option value="none">Neopakuje se</option>
+          <option value="daily" ${rec?.freq === "daily" ? "selected" : ""}>Denně</option>
+          <option value="weekly" ${rec?.freq === "weekly" ? "selected" : ""}>Týdně</option>
+          <option value="monthly" ${rec?.freq === "monthly" ? "selected" : ""}>Měsíčně</option>
+        </select>
       </div>
-      <div class="field" id="ev-recur-days-field">
-        <label>Dny v týdnu</label>
-        <div class="recur-days" id="ev-recur-days">
-          ${WEEKDAY_LABELS.map((l, i) => `<button type="button" class="recur-day-btn ${rec?.byDay?.includes(i) ? "active" : ""}" data-day="${i}">${l}</button>`).join("")}
+      <div id="ev-recur-extra" class="hidden">
+        <div class="row">
+          <div class="field"><label>Interval (každých N)</label><input type="number" id="ev-recur-interval" min="1" value="${rec?.interval || 1}" /></div>
+          <div class="field"><label>Opakovat do (nepovinné)</label><input type="date" id="ev-recur-until" value="${rec?.until || ""}" /></div>
+        </div>
+        <div class="field" id="ev-recur-days-field">
+          <label>Dny v týdnu</label>
+          <div class="recur-days" id="ev-recur-days">
+            ${WEEKDAY_LABELS.map((l, i) => `<button type="button" class="recur-day-btn ${rec?.byDay?.includes(i) ? "active" : ""}" data-day="${i}">${l}</button>`).join("")}
+          </div>
         </div>
       </div>
     </div>
@@ -523,7 +543,7 @@ async function openEventModal(container, dateIso, evt) {
     <div class="modal-actions">
       ${!isNew ? `<button class="btn" id="ev-add-note" style="margin-right:auto;">📝 Přidat poznámku</button>` : ""}
       ${!isNew ? `<button class="btn btn-danger" id="ev-delete">Smazat</button>` : ""}
-      ${hasGoogle() ? `<button class="btn" id="ev-sync-google">📅 ${evt?.google_event_id ? "Aktualizovat v Google" : "Přidat do Google Calendar"}</button>` : ""}
+      ${hasGoogle() ? `<button class="btn event-only-field" id="ev-sync-google">📅 ${evt?.google_event_id ? "Aktualizovat v Google" : "Přidat do Google Calendar"}</button>` : ""}
       <button class="btn" data-close>Zrušit</button>
       <button class="btn btn-primary" id="ev-save">Uložit</button>
     </div>
@@ -562,6 +582,27 @@ async function openEventModal(container, dateIso, evt) {
   });
   modalEl.querySelector("#ev-folder-field").style.display = evt?.category === "gym" || evt?.category === "other" ? "none" : "";
 
+  const typeSeg = modalEl.querySelector("#ev-type-seg");
+  if (typeSeg) {
+    function applyTypeVisibility() {
+      const isTask = itemType === "task";
+      modalEl.querySelectorAll(".event-only-field").forEach((el) => el.classList.toggle("hidden", isTask));
+      modalEl.querySelectorAll(".task-only-field").forEach((el) => el.classList.toggle("hidden", !isTask));
+      modalEl.querySelector("#ev-modal-title").textContent = isTask ? "Nový úkol" : "Nová událost";
+      modalEl.querySelector("#ev-save").textContent = isTask ? "Přidat úkol" : "Uložit";
+      modalEl.querySelector("#ev-start-date-label").textContent = isTask ? "Termín" : "Datum od";
+      modalEl.querySelector("#ev-cat-label").textContent = isTask ? "Oblast" : "Kategorie";
+      if (!isTask) toggleAllDay();
+    }
+    typeSeg.querySelectorAll("[data-type]").forEach((b) =>
+      b.addEventListener("click", () => {
+        itemType = b.dataset.type;
+        typeSeg.querySelectorAll("[data-type]").forEach((x) => x.classList.toggle("active", x === b));
+        applyTypeVisibility();
+      })
+    );
+  }
+
   function collectFields() {
     const allDay = modalEl.querySelector("#ev-allday").checked;
     const sd = modalEl.querySelector("#ev-start-date").value;
@@ -596,10 +637,24 @@ async function openEventModal(container, dateIso, evt) {
 
   modalEl.querySelector("#ev-save").addEventListener("click", async () => {
     try {
-      const fields = collectFields();
-      if (isNew) await Events.create(fields);
-      else await Events.update(evt.id, fields);
-      toast("Uloženo", "success");
+      if (itemType === "task") {
+        const catVal = modalEl.querySelector("#ev-cat").value;
+        const fields = {
+          title: modalEl.querySelector("#ev-title").value.trim() || "Bez názvu",
+          description: modalEl.querySelector("#ev-desc").value.trim() || null,
+          area: CAT_TO_AREA[catVal] || "personal",
+          due_date: modalEl.querySelector("#ev-start-date").value || null,
+          priority: modalEl.querySelector("#ev-priority").value,
+        };
+        await Todos.create(fields);
+        toast("Úkol přidán ✓", "success");
+      } else if (isNew) {
+        await Events.create(collectFields());
+        toast("Uloženo", "success");
+      } else {
+        await Events.update(evt.id, collectFields());
+        toast("Uloženo", "success");
+      }
       close();
       renderBody(container);
     } catch (e) {

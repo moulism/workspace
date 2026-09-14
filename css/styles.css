@@ -144,7 +144,7 @@ html[data-sidebar="collapsed"] .user-chip { justify-content: center; }
   pointer-events: none; z-index: 0;
 }
 
-.nav-group { margin-bottom: 14px; position: relative; z-index: 1; }
+.nav-group { margin-bottom: 14px; }
 .nav-group-label {
   font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
   color: var(--text-faint); padding: 6px 10px 4px;
