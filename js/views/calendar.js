@@ -1,7 +1,8 @@
-import { Events, Todos, Notes } from "../db.js";
-import { escapeHtml, openModal, confirmDialog, todayIso } from "../ui.js";
+import { Events, Todos, Notes, Folders } from "../db.js";
+import { escapeHtml, openModal, confirmDialog, todayIso, fmtDate } from "../ui.js";
 import { toast, toastError } from "../toast.js";
 import { hasGoogle, GCal } from "../google.js";
+import { expandRecurrence, recurrenceSummary, WEEKDAY_LABELS } from "../recurrence.js";
 
 const CATS = [
   { id: "school", label: "Škola" },
@@ -10,6 +11,7 @@ const CATS = [
   { id: "personal", label: "Osobní" },
   { id: "other", label: "Ostatní" },
 ];
+const CAT_TO_AREA = { school: "school", work: "work", personal: "personal", gym: "personal", other: "personal" };
 
 const WEEKDAYS = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"];
 const MODES = [
@@ -156,7 +158,12 @@ async function loadRange(fromIso, toIso_) {
   let todos = [];
   let notes = [];
   try {
-    events = await Events.listRange(startFull, endFull);
+    const [plain, recurringMasters] = await Promise.all([Events.listRange(startFull, endFull), Events.listAllRecurring()]);
+    const rangeStart = new Date(startFull);
+    const rangeEnd = new Date(endFull);
+    const nonRecurring = plain.filter((e) => !e.recurrence || !e.recurrence.freq || e.recurrence.freq === "none");
+    const expanded = recurringMasters.flatMap((m) => expandRecurrence(m, rangeStart, rangeEnd));
+    events = [...nonRecurring, ...expanded];
   } catch (e) {
     toastError(e);
   }
@@ -286,7 +293,7 @@ async function renderDay(container, body) {
         !dayEvents.length && !todos.length && !notes.length
           ? `<div class="empty-state"><div class="big">🗓️</div>Žádné události ani termíny.</div>`
           : `
-          ${dayEvents.map((e) => `<div class="cal-agenda-item" data-evt="${e.id}"><span class="dot cat-${e.category}"></span><b>${e.all_day ? "Celý den" : fmtTimeShort(e.start_at)}</b> — ${escapeHtml(e.title)}${e.location ? ` <span class="faint">· ${escapeHtml(e.location)}</span>` : ""}</div>`).join("")}
+          ${dayEvents.map((e) => `<div class="cal-agenda-item" data-evt="${e._occId || e.id}"><span class="dot cat-${e.category}"></span><b>${e.all_day ? "Celý den" : fmtTimeShort(e.start_at)}</b> — ${escapeHtml(e.title)}${e._isRecurring ? ` <span class="faint">↻</span>` : ""}${e.location ? ` <span class="faint">· ${escapeHtml(e.location)}</span>` : ""}</div>`).join("")}
           ${todos.map((t) => renderChip(t, "todo", true)).join("")}
           ${notes.map((n) => renderChip(n, "note", true)).join("")}
         `
@@ -352,7 +359,7 @@ async function renderYear(container, body) {
 
 function renderChip(item, kind, block) {
   if (kind === "event") {
-    return `<div class="cal-evt ${block ? "cal-evt-block" : ""}" data-evt="${item.id}" style="background:${catColor(item.category)}">${item.all_day ? "" : fmtTimeShort(item.start_at) + " "}${escapeHtml(item.title)}</div>`;
+    return `<div class="cal-evt ${block ? "cal-evt-block" : ""} ${item._isRecurring ? "cal-evt-recur" : ""}" data-evt="${item._occId || item.id}" style="background:${catColor(item.category)}">${item.all_day ? "" : fmtTimeShort(item.start_at) + " "}${escapeHtml(item.title)}</div>`;
   }
   if (kind === "todo") {
     return `<div class="cal-evt cal-evt-task ${block ? "cal-evt-block" : ""}" data-todo="${item.id}" style="border-color:${catColor(item.area)};color:${catColor(item.area)}">✓ ${escapeHtml(item.title)}</div>`;
@@ -373,7 +380,7 @@ function wireItemChips(container, body, { events, todos, notes }) {
   body.querySelectorAll("[data-evt]").forEach((chip) =>
     chip.addEventListener("click", (ev) => {
       ev.stopPropagation();
-      const evt = events.find((e) => e.id === chip.dataset.evt);
+      const evt = events.find((e) => (e._occId || e.id) === chip.dataset.evt);
       if (evt) openEventModal(container, null, evt);
     })
   );
@@ -442,19 +449,41 @@ function toLocalInput(dateIso, time) {
   return `${dateIso}T${time || "09:00"}`;
 }
 
+async function loadFoldersForCat(cat) {
+  const area = CAT_TO_AREA[cat];
+  if (!area) return [];
+  try {
+    return await Folders.list(area);
+  } catch {
+    return [];
+  }
+}
+
 async function openEventModal(container, dateIso, evt) {
   const isNew = !evt;
   const startDate = evt ? evt.start_at.slice(0, 10) : dateIso;
   const startTime = evt && !evt.all_day ? new Date(evt.start_at).toTimeString().slice(0, 5) : "09:00";
   const endTime = evt && evt.end_at && !evt.all_day ? new Date(evt.end_at).toTimeString().slice(0, 5) : "10:00";
+  const rec = evt?.recurrence || null;
+  let folders = await loadFoldersForCat(evt?.category || "school");
 
-  const { el: modalEl, close } = openModal(`
-    <div class="modal-header"><h3>${isNew ? "Nová událost" : "Upravit událost"}</h3><button class="btn btn-icon btn-ghost" data-close>✕</button></div>
+  const { el: modalEl, close } = openModal(
+    `<div class="modal-header"><h3>${isNew ? "Nová událost" : "Upravit událost"}</h3><button class="btn btn-icon btn-ghost" data-close>✕</button></div>
+    ${evt?._isRecurring || rec ? `<div class="faint" style="margin-bottom:10px;">↻ Opakující se událost — úpravy a smazání se týkají celé série.</div>` : ""}
     <div class="field"><label>Název</label><input type="text" id="ev-title" value="${escapeHtml(evt?.title || "")}" /></div>
     <div class="row">
       <div class="field"><label>Kategorie</label>
         <select id="ev-cat">${CATS.map((c) => `<option value="${c.id}" ${evt?.category === c.id ? "selected" : ""}>${c.label}</option>`).join("")}</select>
       </div>
+      <div class="field" id="ev-folder-field">
+        <label id="ev-folder-label">Předmět / složka</label>
+        <select id="ev-folder">
+          <option value="">— žádný —</option>
+          ${folders.map((f) => `<option value="${f.id}" ${evt?.folder_id === f.id ? "selected" : ""}>${f.icon ? f.icon + " " : ""}${escapeHtml(f.name)}</option>`).join("")}
+        </select>
+      </div>
+    </div>
+    <div class="row">
       <div class="field"><label><input type="checkbox" id="ev-allday" ${evt?.all_day ? "checked" : ""} style="width:auto;margin-right:6px;" />Celý den</label></div>
     </div>
     <div class="row">
@@ -467,14 +496,40 @@ async function openEventModal(container, dateIso, evt) {
     </div>
     <div class="field"><label>Místo</label><input type="text" id="ev-location" value="${escapeHtml(evt?.location || "")}" /></div>
     <div class="field"><label>Poznámka</label><textarea id="ev-desc" rows="2">${escapeHtml(evt?.description || "")}</textarea></div>
+
+    <div class="field">
+      <label>Opakování</label>
+      <select id="ev-recur-freq">
+        <option value="none">Neopakuje se</option>
+        <option value="daily" ${rec?.freq === "daily" ? "selected" : ""}>Denně</option>
+        <option value="weekly" ${rec?.freq === "weekly" ? "selected" : ""}>Týdně</option>
+        <option value="monthly" ${rec?.freq === "monthly" ? "selected" : ""}>Měsíčně</option>
+      </select>
+    </div>
+    <div id="ev-recur-extra" class="hidden">
+      <div class="row">
+        <div class="field"><label>Interval (každých N)</label><input type="number" id="ev-recur-interval" min="1" value="${rec?.interval || 1}" /></div>
+        <div class="field"><label>Opakovat do (nepovinné)</label><input type="date" id="ev-recur-until" value="${rec?.until || ""}" /></div>
+      </div>
+      <div class="field" id="ev-recur-days-field">
+        <label>Dny v týdnu</label>
+        <div class="recur-days" id="ev-recur-days">
+          ${WEEKDAY_LABELS.map((l, i) => `<button type="button" class="recur-day-btn ${rec?.byDay?.includes(i) ? "active" : ""}" data-day="${i}">${l}</button>`).join("")}
+        </div>
+      </div>
+    </div>
+
     ${evt?.google_event_id ? `<div class="faint">🔗 Synchronizováno s Google Calendar</div>` : ""}
     <div class="modal-actions">
-      ${!isNew ? `<button class="btn btn-danger" id="ev-delete" style="margin-right:auto;">Smazat</button>` : ""}
+      ${!isNew ? `<button class="btn" id="ev-add-note" style="margin-right:auto;">📝 Přidat poznámku</button>` : ""}
+      ${!isNew ? `<button class="btn btn-danger" id="ev-delete">Smazat</button>` : ""}
       ${hasGoogle() ? `<button class="btn" id="ev-sync-google">📅 ${evt?.google_event_id ? "Aktualizovat v Google" : "Přidat do Google Calendar"}</button>` : ""}
       <button class="btn" data-close>Zrušit</button>
       <button class="btn btn-primary" id="ev-save">Uložit</button>
     </div>
-  `);
+  `,
+    { large: true }
+  );
 
   function toggleAllDay() {
     const allDay = modalEl.querySelector("#ev-allday").checked;
@@ -483,20 +538,59 @@ async function openEventModal(container, dateIso, evt) {
   modalEl.querySelector("#ev-allday").addEventListener("change", toggleAllDay);
   toggleAllDay();
 
+  function toggleRecurFields() {
+    const freq = modalEl.querySelector("#ev-recur-freq").value;
+    modalEl.querySelector("#ev-recur-extra").classList.toggle("hidden", freq === "none");
+    modalEl.querySelector("#ev-recur-days-field").style.display = freq === "weekly" ? "" : "none";
+  }
+  modalEl.querySelector("#ev-recur-freq").addEventListener("change", toggleRecurFields);
+  toggleRecurFields();
+
+  modalEl.querySelectorAll(".recur-day-btn").forEach((b) =>
+    b.addEventListener("click", () => b.classList.toggle("active"))
+  );
+
+  modalEl.querySelector("#ev-cat").addEventListener("change", async (e) => {
+    const newFolders = await loadFoldersForCat(e.target.value);
+    const sel = modalEl.querySelector("#ev-folder");
+    const isSchool = e.target.value === "school";
+    modalEl.querySelector("#ev-folder-label").textContent = isSchool ? "Předmět" : "Složka";
+    sel.innerHTML = `<option value="">— žádný —</option>${newFolders
+      .map((f) => `<option value="${f.id}">${f.icon ? f.icon + " " : ""}${escapeHtml(f.name)}</option>`)
+      .join("")}`;
+    modalEl.querySelector("#ev-folder-field").style.display = e.target.value === "gym" || e.target.value === "other" ? "none" : "";
+  });
+  modalEl.querySelector("#ev-folder-field").style.display = evt?.category === "gym" || evt?.category === "other" ? "none" : "";
+
   function collectFields() {
     const allDay = modalEl.querySelector("#ev-allday").checked;
     const sd = modalEl.querySelector("#ev-start-date").value;
     const ed = modalEl.querySelector("#ev-end-date").value || sd;
     const st = modalEl.querySelector("#ev-start-time").value;
     const et = modalEl.querySelector("#ev-end-time").value;
+    const freq = modalEl.querySelector("#ev-recur-freq").value;
+    let recurrence = null;
+    if (freq !== "none") {
+      recurrence = {
+        freq,
+        interval: Math.max(1, Number(modalEl.querySelector("#ev-recur-interval").value) || 1),
+        until: modalEl.querySelector("#ev-recur-until").value || null,
+      };
+      if (freq === "weekly") {
+        const days = [...modalEl.querySelectorAll(".recur-day-btn.active")].map((b) => Number(b.dataset.day));
+        recurrence.byDay = days.length ? days : [(new Date(sd + "T00:00:00").getDay() + 6) % 7];
+      }
+    }
     return {
       title: modalEl.querySelector("#ev-title").value.trim() || "Bez názvu",
       category: modalEl.querySelector("#ev-cat").value,
+      folder_id: modalEl.querySelector("#ev-folder").value || null,
       all_day: allDay,
       start_at: allDay ? new Date(sd + "T00:00:00").toISOString() : new Date(toLocalInput(sd, st)).toISOString(),
       end_at: allDay ? new Date(ed + "T00:00:00").toISOString() : new Date(toLocalInput(ed, et)).toISOString(),
       location: modalEl.querySelector("#ev-location").value.trim() || null,
       description: modalEl.querySelector("#ev-desc").value.trim() || null,
+      recurrence,
     };
   }
 
@@ -515,7 +609,8 @@ async function openEventModal(container, dateIso, evt) {
 
   if (!isNew) {
     modalEl.querySelector("#ev-delete").addEventListener("click", async () => {
-      if (await confirmDialog("Smazat tuto událost?")) {
+      const msg = evt._isRecurring || rec ? "Smazat tuto opakující se událost (celou sérii)?" : "Smazat tuto událost?";
+      if (await confirmDialog(msg)) {
         try {
           if (evt.google_event_id && hasGoogle()) await GCal.deleteEvent(evt.google_event_id).catch(() => {});
           await Events.remove(evt.id);
@@ -524,6 +619,27 @@ async function openEventModal(container, dateIso, evt) {
         } catch (e) {
           toastError(e);
         }
+      }
+    });
+
+    modalEl.querySelector("#ev-add-note").addEventListener("click", async () => {
+      try {
+        const { openNoteEditor } = await import("./notes.js");
+        const cat = modalEl.querySelector("#ev-cat").value;
+        const area = CAT_TO_AREA[cat] || "personal";
+        const folderId = modalEl.querySelector("#ev-folder").value || null;
+        const dateLabel = fmtDate(modalEl.querySelector("#ev-start-date").value);
+        close();
+        openNoteEditor(container, null, {
+          prefill: {
+            title: `${evt.title} – ${dateLabel}`,
+            area,
+            folder_id: folderId,
+          },
+          onSaved: () => toast("Poznámka přidána 📝", "success"),
+        });
+      } catch (e) {
+        toastError(e);
       }
     });
   }

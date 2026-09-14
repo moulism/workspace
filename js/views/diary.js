@@ -8,12 +8,12 @@ let selectedDate = todayIso();
 
 export async function render(container) {
   container.innerHTML = `
-    <div style="display:flex;gap:18px;align-items:flex-start;">
+    <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;">
       <div class="card" style="width:220px;flex-shrink:0;">
         <div class="faint" style="margin-bottom:8px;">POSLEDNÍ ZÁZNAMY</div>
         <div class="list" id="diary-entries-list"></div>
       </div>
-      <div style="flex:1;min-width:0;">
+      <div style="flex:1;min-width:260px;">
         <div class="section-header">
           <div class="toolbar">
             <input type="date" id="diary-date" value="${selectedDate}" />

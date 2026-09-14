@@ -172,9 +172,24 @@ export const ShoppingItems = {
     if (error) throw error;
     return data;
   },
+  async listNames() {
+    const { data, error } = await supabase.from("shopping_items").select("list_name");
+    if (error) throw error;
+    const names = [...new Set((data || []).map((d) => d.list_name).filter(Boolean))];
+    return names.sort((a, b) => a.localeCompare(b, "cs"));
+  },
   async create(fields) {
     const user_id = await uid();
     const { data, error } = await supabase.from("shopping_items").insert({ user_id, ...fields }).select().single();
+    if (error) throw error;
+    return data;
+  },
+  async createMany(rows) {
+    const user_id = await uid();
+    const { data, error } = await supabase
+      .from("shopping_items")
+      .insert(rows.map((r) => ({ user_id, ...r })))
+      .select();
     if (error) throw error;
     return data;
   },
@@ -203,6 +218,11 @@ export const Events = {
       .lte("start_at", endIso)
       .or(`end_at.gte.${startIso},end_at.is.null`)
       .order("start_at");
+    if (error) throw error;
+    return data;
+  },
+  async listAllRecurring() {
+    const { data, error } = await supabase.from("calendar_events").select("*").not("recurrence", "is", null);
     if (error) throw error;
     return data;
   },
@@ -269,6 +289,16 @@ export const Recipes = {
   },
   async get(id) {
     const { data, error } = await supabase.from("recipes").select("*").eq("id", id).single();
+    if (error) throw error;
+    return data;
+  },
+  async findByExternalId(source, externalId) {
+    const { data, error } = await supabase
+      .from("recipes")
+      .select("*")
+      .eq("source", source)
+      .eq("external_id", externalId)
+      .maybeSingle();
     if (error) throw error;
     return data;
   },
@@ -433,6 +463,52 @@ export const Quizzes = {
   },
   async remove(id) {
     const { error } = await supabase.from("quizzes").delete().eq("id", id);
+    if (error) throw error;
+  },
+};
+
+// ===================== Finance =====================
+
+export const FinanceCategories = {
+  async list() {
+    const { data, error } = await supabase.from("finance_categories").select("*").order("sort_order");
+    if (error) throw error;
+    return data;
+  },
+  async create(fields) {
+    const user_id = await uid();
+    const { data, error } = await supabase.from("finance_categories").insert({ user_id, ...fields }).select().single();
+    if (error) throw error;
+    return data;
+  },
+  async remove(id) {
+    const { error } = await supabase.from("finance_categories").delete().eq("id", id);
+    if (error) throw error;
+  },
+};
+
+export const FinanceTransactions = {
+  async list({ from, to } = {}) {
+    let q = supabase.from("finance_transactions").select("*").order("occurred_on", { ascending: false });
+    if (from) q = q.gte("occurred_on", from);
+    if (to) q = q.lte("occurred_on", to);
+    const { data, error } = await q;
+    if (error) throw error;
+    return data;
+  },
+  async create(fields) {
+    const user_id = await uid();
+    const { data, error } = await supabase.from("finance_transactions").insert({ user_id, ...fields }).select().single();
+    if (error) throw error;
+    return data;
+  },
+  async update(id, fields) {
+    const { data, error } = await supabase.from("finance_transactions").update(fields).eq("id", id).select().single();
+    if (error) throw error;
+    return data;
+  },
+  async remove(id) {
+    const { error } = await supabase.from("finance_transactions").delete().eq("id", id);
     if (error) throw error;
   },
 };

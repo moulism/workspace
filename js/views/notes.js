@@ -4,7 +4,7 @@ import { AI_FUNCTION_NAME } from "../config.js";
 import { escapeHtml, openModal, confirmDialog, fmtDate, todayIso } from "../ui.js";
 import { toast, toastError } from "../toast.js";
 import { createEditor } from "../richtext.js";
-import { exportNoteToPdf } from "../pdfExport.js";
+import { exportNoteToPdf, exportNoteToHtmlFile } from "../pdfExport.js";
 
 function fmtSize(bytes) {
   if (!bytes) return "";
@@ -58,9 +58,9 @@ export async function render(container) {
       </div>
     </div>
     <div id="upcoming-panel"></div>
-    <div style="display:flex;gap:18px;align-items:flex-start;">
+    <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;">
       <div class="card" style="width:210px;flex-shrink:0;" id="folder-panel"></div>
-      <div style="flex:1;min-width:0;" id="notes-main"></div>
+      <div style="flex:1;min-width:260px;" id="notes-main"></div>
     </div>
   `;
 
@@ -278,13 +278,39 @@ async function loadNotesList(container) {
   }
 }
 
-async function openNoteEditor(container, noteId) {
+/**
+ * Opens the note editor modal.
+ *
+ * @param {HTMLElement} container - the view container (used to refresh the
+ *   Notes list after save/delete when no custom callbacks are given).
+ * @param {string|null} noteId - id of an existing note, or null/undefined
+ *   for a new note.
+ * @param {object} [opts]
+ * @param {object} [opts.prefill] - fields to pre-fill a *new* note with
+ *   (e.g. from "+ Přidat poznámku" on a calendar event): title, area,
+ *   folder_id, due_date.
+ * @param {(note: object) => void} [opts.onSaved] - called after a
+ *   successful save instead of re-rendering the Notes view into
+ *   `container` (used when opened from outside the Notes section).
+ * @param {() => void} [opts.onDeleted] - called after a successful delete,
+ *   same idea as onSaved.
+ */
+export async function openNoteEditor(container, noteId, opts = {}) {
   let note = noteId
     ? await Notes.get(noteId).catch((e) => {
         toastError(e);
         return null;
       })
-    : { title: "", content: "", tags: [], area: state.area, folder_id: state.folderId, pinned: false, due_date: null };
+    : {
+        title: "",
+        content: "",
+        tags: [],
+        area: state.area,
+        folder_id: state.folderId,
+        pinned: false,
+        due_date: null,
+        ...(opts.prefill || {}),
+      };
   if (!note) return;
 
   let folders = [];
@@ -319,7 +345,8 @@ async function openNoteEditor(container, noteId) {
        <button class="btn btn-sm" id="ai-flashcards">✨ Flashcards</button>
        <button class="btn btn-sm" id="ai-quiz">✨ Test</button>
        <button class="btn btn-sm" id="ai-summary">✨ Shrnutí</button>
-       <button class="btn btn-sm" id="export-pdf">📄 Export do PDF</button>
+       <button class="btn btn-sm" id="export-pdf">📄 PDF</button>
+       <button class="btn btn-sm" id="export-html">🔗 Export pro kamarády (HTML)</button>
        <span class="faint" id="ai-status"></span>
      </div>
      <div style="margin-top:16px;">
@@ -344,6 +371,11 @@ async function openNoteEditor(container, noteId) {
   modalEl.querySelector("#export-pdf").addEventListener("click", () => {
     const title = modalEl.querySelector("#note-title").value.trim() || "Bez názvu";
     exportNoteToPdf(title, editor.getHtml());
+  });
+  modalEl.querySelector("#export-html").addEventListener("click", () => {
+    const title = modalEl.querySelector("#note-title").value.trim() || "Bez názvu";
+    exportNoteToHtmlFile(title, editor.getHtml());
+    toast("Staženo jako HTML soubor — klidně pošli kamarádům", "success");
   });
 
   if (noteId) {
@@ -377,11 +409,13 @@ async function openNoteEditor(container, noteId) {
       due_date: modalEl.querySelector("#note-due").value || null,
     };
     try {
-      if (noteId) await Notes.update(noteId, fields);
-      else await Notes.create(fields);
+      let saved;
+      if (noteId) saved = await Notes.update(noteId, fields);
+      else saved = await Notes.create(fields);
       toast("Poznámka uložena", "success");
       close();
-      render(container);
+      if (opts.onSaved) opts.onSaved(saved);
+      else render(container);
     } catch (e) {
       toastError(e);
     }
@@ -392,7 +426,8 @@ async function openNoteEditor(container, noteId) {
       if (await confirmDialog("Smazat tuto poznámku?")) {
         await Notes.remove(noteId);
         close();
-        render(container);
+        if (opts.onDeleted) opts.onDeleted();
+        else render(container);
       }
     });
   }

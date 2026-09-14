@@ -9,6 +9,7 @@
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <link rel="stylesheet" href="css/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   <script>
     // Apply theme before paint to avoid a flash of the wrong theme.
     (function () {
@@ -16,6 +17,7 @@
         var t = localStorage.getItem("pw-theme") || "system";
         if (t === "light") document.documentElement.setAttribute("data-theme", "light");
         if (t === "dark") document.documentElement.setAttribute("data-theme", "dark");
+        if (localStorage.getItem("pw-sidebar-collapsed") === "1") document.documentElement.setAttribute("data-sidebar", "collapsed");
       } catch (e) {}
     })();
   </script>
@@ -27,50 +29,58 @@
     <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
     <nav class="sidebar" id="sidebar">
       <div class="sidebar-brand">
-        <span class="logo">W</span>
-        <span>Workspace</span>
+        <span class="logo"><img src="icons/icon-192.png" alt="" /></span>
+        <span class="brand-text">Workspace</span>
+        <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" title="Sbalit / rozbalit menu">«</button>
       </div>
 
-      <div class="nav-group">
-        <a class="nav-item" data-route="dashboard"><span class="ic">🏠</span>Přehled</a>
-      </div>
+      <div class="sidebar-nav" id="sidebar-nav">
+        <div class="nav-highlight" id="nav-highlight"></div>
 
-      <div class="nav-group">
-        <div class="nav-group-label">Organizace</div>
-        <a class="nav-item" data-route="notes"><span class="ic">📝</span>Poznámky</a>
-        <a class="nav-item" data-route="calendar"><span class="ic">📅</span>Kalendář</a>
-        <a class="nav-item" data-route="todos"><span class="ic">✅</span>Úkoly</a>
-        <a class="nav-item" data-route="goals"><span class="ic">🎯</span>Cíle</a>
-      </div>
+        <div class="nav-group">
+          <a class="nav-item" data-route="dashboard"><span class="ic">🏠</span><span class="lbl">Přehled</span></a>
+        </div>
 
-      <div class="nav-group">
-        <div class="nav-group-label">Deník &amp; růst</div>
-        <a class="nav-item" data-route="journal"><span class="ic">📗</span>Successful Journal</a>
-        <a class="nav-item" data-route="diary"><span class="ic">📔</span>Deník</a>
-      </div>
+        <div class="nav-group">
+          <div class="nav-group-label">Organizace</div>
+          <a class="nav-item" data-route="notes"><span class="ic">📝</span><span class="lbl">Poznámky</span></a>
+          <a class="nav-item" data-route="calendar"><span class="ic">📅</span><span class="lbl">Kalendář</span></a>
+          <a class="nav-item" data-route="todos"><span class="ic">✅</span><span class="lbl">Úkoly</span></a>
+          <a class="nav-item" data-route="goals"><span class="ic">🎯</span><span class="lbl">Cíle</span></a>
+        </div>
 
-      <div class="nav-group">
-        <div class="nav-group-label">Zdraví</div>
-        <a class="nav-item" data-route="gym"><span class="ic">🏋️</span>Gym</a>
-        <a class="nav-item" data-route="meals"><span class="ic">🍽️</span>Jídelníček</a>
-        <a class="nav-item" data-route="recipes"><span class="ic">📖</span>Recepty</a>
-        <a class="nav-item" data-route="shopping"><span class="ic">🛒</span>Nákupy</a>
+        <div class="nav-group">
+          <div class="nav-group-label">Deník &amp; růst</div>
+          <a class="nav-item" data-route="journal"><span class="ic">📗</span><span class="lbl">Successful Journal</span></a>
+          <a class="nav-item" data-route="diary"><span class="ic">📔</span><span class="lbl">Deník</span></a>
+        </div>
+
+        <div class="nav-group">
+          <div class="nav-group-label">Zdraví &amp; domácnost</div>
+          <a class="nav-item" data-route="gym"><span class="ic">🏋️</span><span class="lbl">Gym</span></a>
+          <a class="nav-item" data-route="meals"><span class="ic">🍽️</span><span class="lbl">Jídelníček</span></a>
+          <a class="nav-item" data-route="recipes"><span class="ic">📖</span><span class="lbl">Recepty</span></a>
+          <a class="nav-item" data-route="shopping"><span class="ic">🛒</span><span class="lbl">Nákupy</span></a>
+          <a class="nav-item" data-route="finance"><span class="ic">💰</span><span class="lbl">Finance</span></a>
+        </div>
       </div>
 
       <div class="sidebar-footer">
-        <a class="nav-item" data-route="settings"><span class="ic">⚙️</span>Nastavení</a>
+        <a class="nav-item" data-route="settings"><span class="ic">⚙️</span><span class="lbl">Nastavení</span></a>
         <div class="user-chip">
           <span class="avatar" id="user-avatar">?</span>
-          <span class="truncate" id="user-email">…</span>
+          <span class="truncate lbl" id="user-email">…</span>
         </div>
-        <button class="btn btn-ghost btn-sm" id="signout-btn">Odhlásit se</button>
+        <button class="btn btn-ghost btn-sm lbl-only" id="signout-btn">Odhlásit se</button>
       </div>
     </nav>
 
     <div class="main">
       <div class="topbar">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <button class="btn btn-icon menu-btn" id="menu-btn">☰</button>
+        <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+          <button class="btn btn-icon menu-btn" id="menu-btn" aria-label="Menu">
+            <span class="burger"><span></span><span></span><span></span></span>
+          </button>
           <h1 id="view-title">Přehled</h1>
         </div>
         <div class="topbar-right">
@@ -79,6 +89,14 @@
       </div>
       <div class="view" id="view-container"></div>
     </div>
+
+    <nav class="bottom-nav" id="bottom-nav">
+      <a class="bn-item" data-route="dashboard"><span class="ic">🏠</span><span>Přehled</span></a>
+      <a class="bn-item" data-route="notes"><span class="ic">📝</span><span>Poznámky</span></a>
+      <a class="bn-item" data-route="calendar"><span class="ic">📅</span><span>Kalendář</span></a>
+      <a class="bn-item" data-route="todos"><span class="ic">✅</span><span>Úkoly</span></a>
+      <button class="bn-item" id="bn-more"><span class="ic">☰</span><span>Více</span></button>
+    </nav>
   </div>
 
   <script type="module" src="js/app.js"></script>

@@ -1,5 +1,3 @@
-const COLORS = ["#e0342f", "#e08d1f", "#1f9e4a", "#1f7ae0", "#8b3fe0", "#1f1f1f", "#6b6a68"];
-
 const TOOLS = [
   { cmd: "bold", label: "<b>B</b>", title: "Tučně (Ctrl+B)" },
   { cmd: "italic", label: "<i>I</i>", title: "Kurzíva (Ctrl+I)" },
@@ -12,10 +10,24 @@ const TOOLS = [
   { sep: true },
   { cmd: "insertUnorderedList", label: "•", title: "Odrážky" },
   { cmd: "insertOrderedList", label: "1.", title: "Číslovaný seznam" },
+  { custom: "checklist", label: "☑", title: "Zaškrtávací seznam (jako v Notion)" },
   { cmd: "formatBlock", value: "blockquote", label: "❝", title: "Citace" },
+  { custom: "divider", label: "―", title: "Oddělovač" },
   { sep: true },
   { cmd: "removeFormat", label: "⌫", title: "Vymazat formátování" },
 ];
+
+function insertChecklistItem() {
+  document.execCommand(
+    "insertHTML",
+    false,
+    `<div class="todo-line"><input type="checkbox" /><span>&nbsp;Nová položka</span></div><p><br></p>`
+  );
+}
+
+function insertDivider() {
+  document.execCommand("insertHTML", false, `<hr class="note-divider" /><p><br></p>`);
+}
 
 export function createEditor(container, initialHtml = "") {
   container.innerHTML = "";
@@ -37,7 +49,9 @@ export function createEditor(container, initialHtml = "") {
     btn.title = t.title;
     btn.addEventListener("mousedown", (e) => e.preventDefault());
     btn.addEventListener("click", () => {
-      document.execCommand(t.cmd, false, t.value || null);
+      if (t.custom === "checklist") insertChecklistItem();
+      else if (t.custom === "divider") insertDivider();
+      else document.execCommand(t.cmd, false, t.value || null);
       content.focus();
     });
     toolbar.appendChild(btn);
@@ -67,6 +81,23 @@ export function createEditor(container, initialHtml = "") {
   content.className = "editor-content";
   content.contentEditable = "true";
   content.innerHTML = initialHtml || "<p><br></p>";
+
+  // Typing "[] " or "[ ] " at the start of a line converts it into a checklist
+  // item, similar to Notion's markdown-style shortcuts.
+  content.addEventListener("keydown", (e) => {
+    if (e.key !== " ") return;
+    const sel = window.getSelection();
+    if (!sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    const node = range.startContainer;
+    const text = node.textContent || "";
+    const before = text.slice(0, range.startOffset);
+    if (/^\[\s?\]$/.test(before.trim())) {
+      e.preventDefault();
+      node.textContent = text.slice(range.startOffset);
+      insertChecklistItem();
+    }
+  });
 
   container.appendChild(toolbar);
   container.appendChild(content);

@@ -1,4 +1,4 @@
-const CACHE = "workspace-shell-v1";
+const CACHE = "workspace-shell-v2";
 const SHELL = [
   "./",
   "./index.html",
@@ -10,6 +10,7 @@ const SHELL = [
   "./js/db.js",
   "./js/google.js",
   "./js/pdfExport.js",
+  "./js/recurrence.js",
   "./js/richtext.js",
   "./js/supabaseClient.js",
   "./js/vendor/supabase.esm.js",
@@ -26,9 +27,12 @@ const SHELL = [
   "./js/views/meals.js",
   "./js/views/recipes.js",
   "./js/views/shopping.js",
+  "./js/views/finance.js",
+  "./js/views/journal.js",
   "./js/views/settings.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
+  "./icons/icon-maskable-512.png",
 ];
 
 self.addEventListener("install", (event) => {
