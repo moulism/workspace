@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { getSession, onAuthChange, signInWithGoogle, signInWithEmail, signOut } from "./auth.js";
+import { getSession, onAuthChange, signInWithGoogle, signInWithEmail, signInWithPassword, signUpWithPassword, signOut } from "./auth.js";
 import { initTheme, cycleTheme } from "./theme.js";
 import { toastError } from "./toast.js";
 
@@ -31,6 +31,18 @@ const sidebarBackdrop = document.getElementById("sidebar-backdrop");
 const navHighlight = document.getElementById("nav-highlight");
 const collapseBtn = document.getElementById("sidebar-collapse-btn");
 
+const AUTH_ERROR_CZ = {
+  "Invalid login credentials": "Špatný email nebo heslo.",
+  "User already registered": "S tímto emailem už účet existuje — přepni na „Přihlásit se“.",
+  "Password should be at least 6 characters": "Heslo musí mít aspoň 6 znaků.",
+  "Email not confirmed": "Email ještě není potvrzený — zkontroluj schránku.",
+};
+function authErrorMessage(e) {
+  return AUTH_ERROR_CZ[e?.message] || e?.message || "Něco se nepovedlo.";
+}
+
+let authMode = "signin"; // "signin" | "signup"
+
 function renderAuthScreen() {
   appRoot.classList.add("hidden");
   authRoot.innerHTML = `
@@ -42,16 +54,34 @@ function renderAuthScreen() {
         <h1>Workspace</h1>
         <p>Tvůj osobní prostor na poznámky, úkoly, kalendář a další.</p>
         <button class="btn btn-primary" id="google-signin" style="width:100%;justify-content:center;">Přihlásit se přes Google</button>
+        <div class="auth-divider"><span>nebo emailem a heslem</span></div>
+        <div class="toolbar" style="justify-content:center;margin-bottom:12px;">
+          <button type="button" class="chip ${authMode === "signin" ? "active" : ""}" data-auth-mode="signin">Přihlásit se</button>
+          <button type="button" class="chip ${authMode === "signup" ? "active" : ""}" data-auth-mode="signup">Vytvořit účet</button>
+        </div>
+        <form id="password-auth-form">
+          <input type="email" id="auth-email" placeholder="tvuj@email.cz" required autocomplete="username" style="margin-bottom:8px;" />
+          <div class="row" style="gap:6px;margin-bottom:8px;">
+            <input type="password" id="auth-password" placeholder="Heslo" required minlength="6" autocomplete="${authMode === "signup" ? "new-password" : "current-password"}" style="flex:1;" />
+            <button type="button" class="btn btn-icon" id="auth-pw-toggle" style="flex:0 0 auto;" title="Zobrazit/skrýt heslo">👁</button>
+          </div>
+          <button class="btn btn-primary" type="submit" id="auth-submit-btn" style="width:100%;justify-content:center;">
+            ${authMode === "signup" ? "Vytvořit účet" : "Přihlásit se"}
+          </button>
+        </form>
+        <div class="faint hidden" id="auth-confirm-msg" style="margin-top:10px;"></div>
         <div class="auth-divider"><span>nebo</span></div>
         <form id="email-signin-form">
           <input type="email" id="email-input" placeholder="tvuj@email.cz" required style="margin-bottom:8px;" />
-          <button class="btn" type="submit" style="width:100%;justify-content:center;">Poslat přihlašovací odkaz emailem</button>
+          <button class="btn btn-ghost btn-sm" type="submit" style="width:100%;justify-content:center;">Poslat přihlašovací odkaz emailem</button>
         </form>
         <div class="faint hidden" id="email-sent-msg" style="margin-top:10px;">
-          Odkaz je na cestě — zkontroluj email a klikni na něj (může být ve spamu).
+          Odkaz je na cestě — zkontroluj email a klikni na něj (může být ve spamu). Pozn.: odkaz se otevře
+          v prohlížeči, ne v appce na ploše — pro přihlášení přímo v appce použij nahoře email + heslo.
         </div>
       </div>
     </div>`;
+
   document.getElementById("google-signin").addEventListener("click", async () => {
     try {
       await signInWithGoogle();
@@ -59,6 +89,48 @@ function renderAuthScreen() {
       toastError(e);
     }
   });
+
+  authRoot.querySelectorAll("[data-auth-mode]").forEach((b) =>
+    b.addEventListener("click", () => {
+      authMode = b.dataset.authMode;
+      renderAuthScreen();
+    })
+  );
+
+  document.getElementById("auth-pw-toggle").addEventListener("click", () => {
+    const input = document.getElementById("auth-password");
+    input.type = input.type === "password" ? "text" : "password";
+  });
+
+  document.getElementById("password-auth-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("auth-email").value.trim();
+    const password = document.getElementById("auth-password").value;
+    if (!email || !password) return;
+    const btn = document.getElementById("auth-submit-btn");
+    btn.disabled = true;
+    try {
+      if (authMode === "signup") {
+        const { data, error } = await signUpWithPassword(email, password);
+        if (error) throw error;
+        if (data.session) {
+          // Confirm-email is off on this project — signed in immediately.
+          return;
+        }
+        e.target.classList.add("hidden");
+        const msg = document.getElementById("auth-confirm-msg");
+        msg.textContent = "Účet vytvořen — potvrď ho kliknutím na odkaz, který ti přišel na email, pak se přihlas heslem výše.";
+        msg.classList.remove("hidden");
+      } else {
+        const { error } = await signInWithPassword(email, password);
+        if (error) throw error;
+      }
+    } catch (err) {
+      toastError(authErrorMessage(err));
+      btn.disabled = false;
+    }
+  });
+
   document.getElementById("email-signin-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const email = document.getElementById("email-input").value.trim();
