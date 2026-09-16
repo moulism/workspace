@@ -441,6 +441,12 @@ label { font-size: 12.5px; color: var(--text-muted); display: block; margin-bott
 .editor-content {
   min-height: 220px; border: 1px solid var(--border); border-radius: 0 0 var(--radius-sm) var(--radius-sm);
   padding: 14px 14px 26px; background: var(--bg-elevated); outline: none;
+  /* Force the blinking caret to always use the theme's text color, instead
+     of the default "auto" behavior of matching whatever inline color the
+     text run at the caret happens to have (e.g. a note written in dark
+     mode with white text is invisible on a light background — and so is
+     the caret sitting inside it, without this). */
+  caret-color: var(--text);
 }
 .editor-content:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .editor-content b, .editor-content strong { font-weight: 700; }
