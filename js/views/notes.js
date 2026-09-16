@@ -561,6 +561,53 @@ export async function openNoteEditor(container, noteId, opts = {}) {
 }
 
 
+function previewKind(mime = "") {
+  if (mime.startsWith("image/")) return "image";
+  if (mime === "application/pdf") return "pdf";
+  if (mime.startsWith("video/")) return "video";
+  if (mime.startsWith("audio/")) return "audio";
+  if (mime.startsWith("text/")) return "text";
+  return null;
+}
+
+async function openAttachmentPreview(f) {
+  const kind = previewKind(f.mime_type);
+  const { el: modalEl } = openModal(
+    `<div class="modal-header"><h3 class="truncate">📎 ${escapeHtml(f.file_name)}</h3><button class="btn btn-icon btn-ghost" data-close>✕</button></div>
+     <div class="att-preview-media" id="att-preview-mount"><div class="center" style="padding:30px;"><div class="spinner"></div></div></div>
+     <div class="modal-actions">
+       <button class="btn" data-close>Zavřít</button>
+       <button class="btn btn-primary" id="att-download">⬇️ Stáhnout</button>
+     </div>`,
+    { large: true }
+  );
+  modalEl.querySelector("#att-download").addEventListener("click", async () => {
+    try {
+      const url = await Attachments.getDownloadUrl(f.file_path, { download: f.file_name });
+      window.open(url, "_blank");
+    } catch (e) {
+      toastError(e);
+    }
+  });
+  const mount = modalEl.querySelector("#att-preview-mount");
+  try {
+    const url = await Attachments.getDownloadUrl(f.file_path);
+    if (kind === "image") mount.innerHTML = `<img src="${url}" alt="${escapeHtml(f.file_name)}" />`;
+    else if (kind === "pdf") mount.innerHTML = `<iframe src="${url}"></iframe>`;
+    else if (kind === "video") mount.innerHTML = `<video src="${url}" controls></video>`;
+    else if (kind === "audio") mount.innerHTML = `<audio src="${url}" controls></audio>`;
+    else if (kind === "text") {
+      const text = await fetch(url).then((r) => r.text());
+      mount.innerHTML = `<pre>${escapeHtml(text)}</pre>`;
+    } else {
+      mount.innerHTML = `<div class="faint">Pro tento typ souboru není náhled k dispozici — stáhni si ho tlačítkem níže.</div>`;
+    }
+  } catch (e) {
+    mount.innerHTML = `<div class="faint">Náhled se nepodařilo načíst.</div>`;
+    toastError(e);
+  }
+}
+
 async function loadAttachments(modalEl, noteId) {
   const box = modalEl.querySelector("#attachments-list");
   if (!box) return;
@@ -571,22 +618,28 @@ async function loadAttachments(modalEl, noteId) {
       return;
     }
     box.innerHTML = files
-      .map(
-        (f) => `<div class="list-item">
-          <div class="grow">
+      .map((f) => {
+        const previewable = !!previewKind(f.mime_type);
+        return `<div class="list-item">
+          <div class="grow" ${previewable ? `data-preview="${f.id}" style="cursor:pointer;"` : ""}>
             <div class="title truncate">📎 ${escapeHtml(f.file_name)}</div>
-            <div class="faint">${fmtSize(f.size_bytes)}</div>
+            <div class="faint">${fmtSize(f.size_bytes)}${previewable ? " · klepni pro náhled" : ""}</div>
           </div>
+          ${previewable ? `<button type="button" class="btn btn-sm" data-preview="${f.id}">👁 Náhled</button>` : ""}
           <button type="button" class="btn btn-sm" data-download="${f.id}">Stáhnout</button>
           <button type="button" class="btn btn-icon btn-ghost btn-sm" data-del-att="${f.id}">✕</button>
-        </div>`
-      )
+        </div>`;
+      })
       .join("");
+    box.querySelectorAll("[data-preview]").forEach((b) => {
+      const f = files.find((x) => x.id === b.dataset.preview);
+      b.addEventListener("click", () => openAttachmentPreview(f));
+    });
     box.querySelectorAll("[data-download]").forEach((b) => {
       const f = files.find((x) => x.id === b.dataset.download);
       b.addEventListener("click", async () => {
         try {
-          const url = await Attachments.getDownloadUrl(f.file_path);
+          const url = await Attachments.getDownloadUrl(f.file_path, { download: f.file_name });
           window.open(url, "_blank");
         } catch (e) {
           toastError(e);

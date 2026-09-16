@@ -701,3 +701,43 @@ body.note-page-open { overflow: hidden; }
   .note-page-title-input { font-size: 17px; }
   .note-page-editor-mount, .note-page-toolbar, .note-page-attachments { padding-left: 16px; padding-right: 16px; }
 }
+
+/* ============ Editor images: baseline + click-to-resize ============ */
+.editor-content img, .note-render img {
+  max-width: 100%; height: auto; border-radius: 6px; display: block; margin: 8px 0;
+  cursor: pointer;
+}
+.editor-content img.img-selected {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.img-resize-handle {
+  position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px;
+  background: var(--accent); border: 2px solid var(--bg-elevated); border-radius: 50%;
+  cursor: nwse-resize; z-index: 5; touch-action: none;
+}
+.img-size-bar {
+  position: absolute; z-index: 5; display: flex; gap: 4px;
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px;
+  padding: 4px; box-shadow: var(--shadow);
+}
+.img-size-bar button {
+  border: none; background: var(--bg-hover); color: var(--text);
+  font-size: 11px; padding: 4px 8px; border-radius: 6px; cursor: pointer;
+}
+.img-size-bar button:hover { background: var(--accent-soft); color: var(--accent); }
+
+/* ============ Attachment preview modal ============ */
+.att-preview-media { display: flex; justify-content: center; align-items: center; }
+.att-preview-media img { max-width: 100%; max-height: 74vh; border-radius: 8px; }
+.att-preview-media iframe { width: 100%; height: 74vh; border: none; border-radius: 8px; background: var(--bg-hover); }
+.att-preview-media video { max-width: 100%; max-height: 74vh; border-radius: 8px; }
+.att-preview-media audio { width: 100%; }
+.att-preview-media pre {
+  width: 100%; max-height: 74vh; overflow: auto; white-space: pre-wrap; word-break: break-word;
+  background: var(--bg-hover); padding: 12px; border-radius: 8px; font-size: 13px;
+}
+
+#attachments-list .list-item { flex-wrap: wrap; }
+@media (max-width: 480px) {
+  #attachments-list .list-item .grow { flex-basis: 100%; }
+}

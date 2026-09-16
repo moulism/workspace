@@ -86,8 +86,10 @@ export const Attachments = {
     if (error) throw error;
     return data;
   },
-  async getDownloadUrl(path) {
-    const { data, error } = await supabase.storage.from("files").createSignedUrl(path, 120);
+  async getDownloadUrl(path, { download } = {}) {
+    const { data, error } = await supabase.storage
+      .from("files")
+      .createSignedUrl(path, 120, download ? { download: typeof download === "string" ? download : true } : undefined);
     if (error) throw error;
     return data.signedUrl;
   },
