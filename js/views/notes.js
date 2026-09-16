@@ -401,8 +401,59 @@ export async function openNoteEditor(container, noteId, opts = {}) {
   document.body.appendChild(overlay);
   document.body.classList.add("note-page-open");
 
+  // iOS Safari keeps a position:fixed element at the full layout-viewport
+  // height even while the on-screen keyboard is open, instead of shrinking
+  // it — so the bottom of the note editor (and whatever you're currently
+  // typing) ends up hidden behind the keyboard with no way to scroll to it.
+  // Track the actual visible area via visualViewport and resize the overlay
+  // to match, so its internal scroll container has the right bounds.
+  function syncViewportSize() {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    overlay.style.height = `${vv.height}px`;
+    overlay.style.top = `${vv.offsetTop}px`;
+  }
+  if (window.visualViewport) {
+    syncViewportSize();
+    window.visualViewport.addEventListener("resize", syncViewportSize);
+    window.visualViewport.addEventListener("scroll", syncViewportSize);
+  }
+
+  const mainEl = overlay.querySelector(".note-page-main");
+
+  // Belt-and-braces: also make sure the caret stays in view as you type.
+  // Some mobile browsers don't reliably auto-scroll a nested overflow
+  // container (as opposed to the whole page) when the caret moves past
+  // its visible edge.
+  function scrollCaretIntoView() {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount || !mainEl || !mainEl.contains(sel.anchorNode)) return;
+    let rect = sel.getRangeAt(0).getBoundingClientRect();
+    if (!rect || (!rect.top && !rect.bottom)) {
+      const node = sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode;
+      if (node && node.getBoundingClientRect) rect = node.getBoundingClientRect();
+    }
+    if (!rect || (!rect.top && !rect.bottom)) return;
+    const mainRect = mainEl.getBoundingClientRect();
+    const margin = 24;
+    if (rect.bottom > mainRect.bottom - margin) {
+      mainEl.scrollTop += rect.bottom - (mainRect.bottom - margin);
+    } else if (rect.top < mainRect.top + margin) {
+      mainEl.scrollTop -= mainRect.top + margin - rect.top;
+    }
+  }
+  function selectionHandler() {
+    if (document.activeElement && document.activeElement.closest?.(".note-page-editor-mount")) scrollCaretIntoView();
+  }
+  document.addEventListener("selectionchange", selectionHandler);
+
   function close() {
     document.removeEventListener("keydown", escHandler);
+    document.removeEventListener("selectionchange", selectionHandler);
+    if (window.visualViewport) {
+      window.visualViewport.removeEventListener("resize", syncViewportSize);
+      window.visualViewport.removeEventListener("scroll", syncViewportSize);
+    }
     overlay.remove();
     document.body.classList.remove("note-page-open");
   }
@@ -419,6 +470,8 @@ export async function openNoteEditor(container, noteId, opts = {}) {
   });
 
   const editor = createEditor(overlay.querySelector("#note-editor-mount"), note.content);
+  editor.el.addEventListener("input", scrollCaretIntoView);
+  editor.el.addEventListener("keyup", scrollCaretIntoView);
 
   async function refreshFolderTree() {
     const wrap = overlay.querySelector("#note-folder-tree");
