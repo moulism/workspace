@@ -57,14 +57,45 @@ export function createEditor(container, initialHtml = "") {
     toolbar.appendChild(btn);
   }
 
-  const colorInput = document.createElement("input");
-  colorInput.type = "color";
-  colorInput.title = "Barva textu";
-  colorInput.addEventListener("input", () => {
-    document.execCommand("foreColor", false, colorInput.value);
+  // Curated, contrast-safe text colors instead of a free-form color picker —
+  // an arbitrary pick (e.g. white) reads fine in dark mode but disappears
+  // entirely if the note is later viewed in light mode, and vice versa.
+  const TEXT_COLORS = ["#dc4c3f", "#c98a1f", "#2f9e5b", "#0f766e", "#0284c7", "#4f46e5", "#a21caf", "#6b6a68"];
+
+  const colorWrap = document.createElement("div");
+  colorWrap.className = "editor-color-wrap";
+  const colorBtn = document.createElement("button");
+  colorBtn.type = "button";
+  colorBtn.title = "Barva textu";
+  colorBtn.textContent = "A";
+  colorBtn.style.fontWeight = "700";
+  colorBtn.addEventListener("mousedown", (e) => e.preventDefault());
+  const colorPopover = document.createElement("div");
+  colorPopover.className = "editor-color-popover hidden";
+  colorPopover.innerHTML = `
+    <button type="button" class="color-swatch color-swatch-reset" data-reset title="Výchozí barva (podle motivu)">⊘</button>
+    ${TEXT_COLORS.map((c) => `<button type="button" class="color-swatch" data-color="${c}" style="background:${c};"></button>`).join("")}
+  `;
+  colorBtn.addEventListener("click", () => colorPopover.classList.toggle("hidden"));
+  colorPopover.querySelectorAll("button").forEach((b) => b.addEventListener("mousedown", (e) => e.preventDefault()));
+  colorPopover.querySelectorAll("[data-color]").forEach((b) =>
+    b.addEventListener("click", () => {
+      document.execCommand("foreColor", false, b.dataset.color);
+      colorPopover.classList.add("hidden");
+      content.focus();
+    })
+  );
+  colorPopover.querySelector("[data-reset]").addEventListener("click", () => {
+    document.execCommand("foreColor", false, getComputedStyle(content).color);
+    colorPopover.classList.add("hidden");
     content.focus();
   });
-  toolbar.appendChild(colorInput);
+  document.addEventListener("click", (e) => {
+    if (!colorWrap.contains(e.target)) colorPopover.classList.add("hidden");
+  });
+  colorWrap.appendChild(colorBtn);
+  colorWrap.appendChild(colorPopover);
+  toolbar.appendChild(colorWrap);
 
   const highlightBtn = document.createElement("button");
   highlightBtn.type = "button";

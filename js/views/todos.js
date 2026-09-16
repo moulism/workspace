@@ -75,8 +75,8 @@ async function loadList(container) {
       .map(
         (t) => `<label class="list-item ${t.done ? "done" : ""}">
           <input type="checkbox" data-id="${t.id}" class="check" ${t.done ? "checked" : ""} />
-          <div class="grow">
-            <div class="title">${escapeHtml(t.title)}</div>
+          <div class="grow" data-open="${t.id}" style="cursor:pointer;">
+            <div class="title">${escapeHtml(t.title)}${t.description ? ` <span class="faint">📝</span>` : ""}</div>
             <div class="faint">${AREAS[t.area] || ""} ${t.due_date ? "· " + fmtDate(t.due_date) : ""}</div>
           </div>
           <span class="pill">${PRIORITIES[t.priority] || t.priority}</span>
@@ -85,14 +85,23 @@ async function loadList(container) {
       )
       .join("");
     box.querySelectorAll(".check").forEach((cb) =>
-      cb.addEventListener("change", async () => {
+      cb.addEventListener("change", async (e) => {
+        e.stopPropagation();
         await Todos.toggle(cb.dataset.id, cb.checked);
         loadList(container);
       })
     );
+    box.querySelectorAll("[data-open]").forEach((el) => {
+      const t = todos.find((x) => x.id === el.dataset.open);
+      el.addEventListener("click", (e) => {
+        e.preventDefault(); // don't let the wrapping <label> also toggle the checkbox
+        openTodoModal(container, t);
+      });
+    });
     box.querySelectorAll("[data-del]").forEach((b) =>
       b.addEventListener("click", async (e) => {
         e.preventDefault();
+        e.stopPropagation();
         if (await confirmDialog("Smazat úkol?")) {
           await Todos.remove(b.dataset.del);
           loadList(container);
@@ -102,4 +111,71 @@ async function loadList(container) {
   } catch (e) {
     toastError(e);
   }
+}
+
+async function openTodoModal(container, todo) {
+  const { el: modalEl, close } = openModal(
+    `<div class="modal-header"><h3>Úkol</h3><button class="btn btn-icon btn-ghost" data-close>✕</button></div>
+     <div class="field"><label>Název</label><input type="text" id="t-title" value="${escapeHtml(todo.title)}" /></div>
+     <div class="field"><label>Popis / poznámky</label><textarea id="t-desc" rows="5" placeholder="Co všechno je k tomu potřeba vědět…">${escapeHtml(todo.description || "")}</textarea></div>
+     <div class="row">
+       <div class="field"><label>Oblast</label>
+         <select id="t-area">${Object.entries(AREAS).map(([id, l]) => `<option value="${id}" ${todo.area === id ? "selected" : ""}>${l}</option>`).join("")}</select>
+       </div>
+       <div class="field"><label>Priorita</label>
+         <select id="t-priority">${Object.entries(PRIORITIES).map(([id, l]) => `<option value="${id}" ${todo.priority === id ? "selected" : ""}>${l}</option>`).join("")}</select>
+       </div>
+     </div>
+     <div class="row">
+       <div class="field">
+         <label>Termín</label>
+         <div class="row" style="gap:6px;">
+           <input type="date" id="t-due" value="${todo.due_date || ""}" />
+           <button type="button" class="btn btn-icon btn-ghost" id="t-due-clear" title="Odebrat termín" style="flex:0 0 auto;">✕</button>
+         </div>
+       </div>
+       <div class="field"><label><input type="checkbox" id="t-done" ${todo.done ? "checked" : ""} style="width:auto;margin-right:6px;" />Hotovo</label></div>
+     </div>
+     <div class="modal-actions">
+       <button class="btn btn-danger" id="t-delete" style="margin-right:auto;">Smazat</button>
+       <button class="btn" data-close>Zavřít</button>
+       <button class="btn btn-primary" id="t-save">Uložit</button>
+     </div>`,
+    { large: true }
+  );
+
+  modalEl.querySelector("#t-due-clear").addEventListener("click", () => {
+    modalEl.querySelector("#t-due").value = "";
+  });
+
+  modalEl.querySelector("#t-save").addEventListener("click", async () => {
+    const fields = {
+      title: modalEl.querySelector("#t-title").value.trim() || "Bez názvu",
+      description: modalEl.querySelector("#t-desc").value.trim() || null,
+      area: modalEl.querySelector("#t-area").value,
+      priority: modalEl.querySelector("#t-priority").value,
+      due_date: modalEl.querySelector("#t-due").value || null,
+      done: modalEl.querySelector("#t-done").checked,
+    };
+    try {
+      await Todos.update(todo.id, fields);
+      toast("Úkol uložen", "success");
+      close();
+      loadList(container);
+    } catch (e) {
+      toastError(e);
+    }
+  });
+
+  modalEl.querySelector("#t-delete").addEventListener("click", async () => {
+    if (await confirmDialog("Smazat úkol?")) {
+      try {
+        await Todos.remove(todo.id);
+        close();
+        loadList(container);
+      } catch (e) {
+        toastError(e);
+      }
+    }
+  });
 }
