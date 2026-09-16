@@ -635,7 +635,7 @@ table.fin-table .action { cursor: pointer; color: var(--accent); font-size: 12px
 
 /* ============ Full-page (Notion-style) note editor ============ */
 .note-page-overlay {
-  position: fixed; inset: 0; z-index: 300;
+  position: fixed; inset: 0; height: 100dvh; z-index: 300;
   background: var(--bg);
   display: flex; flex-direction: column;
   animation: notePageIn .16s ease;
@@ -663,6 +663,11 @@ table.fin-table .action { cursor: pointer; color: var(--accent); font-size: 12px
 .note-page-main {
   flex: 1; overflow-y: auto; padding: 8px 0 40px;
   display: flex; flex-direction: column;
+  -webkit-overflow-scrolling: touch;
+  /* Nested overflow-y:auto inside a position:fixed ancestor can leave stale
+     pixels behind in WebKit while scrolling (looks like "ghosted"/stuck
+     text). Forcing its own compositing layer avoids that. */
+  transform: translateZ(0);
 }
 .note-page-editor-mount {
   flex: 1; min-height: 320px; padding: 24px clamp(20px, 6vw, 72px) 28px; max-width: 900px; width: 100%; margin: 0 auto;

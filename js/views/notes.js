@@ -401,24 +401,6 @@ export async function openNoteEditor(container, noteId, opts = {}) {
   document.body.appendChild(overlay);
   document.body.classList.add("note-page-open");
 
-  // iOS Safari keeps a position:fixed element at the full layout-viewport
-  // height even while the on-screen keyboard is open, instead of shrinking
-  // it — so the bottom of the note editor (and whatever you're currently
-  // typing) ends up hidden behind the keyboard with no way to scroll to it.
-  // Track the actual visible area via visualViewport and resize the overlay
-  // to match, so its internal scroll container has the right bounds.
-  function syncViewportSize() {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    overlay.style.height = `${vv.height}px`;
-    overlay.style.top = `${vv.offsetTop}px`;
-  }
-  if (window.visualViewport) {
-    syncViewportSize();
-    window.visualViewport.addEventListener("resize", syncViewportSize);
-    window.visualViewport.addEventListener("scroll", syncViewportSize);
-  }
-
   const mainEl = overlay.querySelector(".note-page-main");
 
   // Belt-and-braces: also make sure the caret stays in view as you type.
@@ -444,10 +426,6 @@ export async function openNoteEditor(container, noteId, opts = {}) {
   }
   function close() {
     document.removeEventListener("keydown", escHandler);
-    if (window.visualViewport) {
-      window.visualViewport.removeEventListener("resize", syncViewportSize);
-      window.visualViewport.removeEventListener("scroll", syncViewportSize);
-    }
     overlay.remove();
     document.body.classList.remove("note-page-open");
   }
