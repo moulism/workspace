@@ -1,7 +1,7 @@
 import { Notes, Folders, FlashcardSets, Quizzes, Attachments } from "../db.js";
 import { supabase } from "../supabaseClient.js";
 import { AI_FUNCTION_NAME } from "../config.js";
-import { escapeHtml, openModal, confirmDialog, fmtDate, todayIso } from "../ui.js";
+import { escapeHtml, openModal, confirmDialog, fmtDate, fmtDateTime, todayIso } from "../ui.js";
 import { toast, toastError } from "../toast.js";
 import { createEditor } from "../richtext.js";
 import { exportNoteToPdf, exportNoteToHtmlFile } from "../pdfExport.js";
@@ -352,6 +352,7 @@ export async function openNoteEditor(container, noteId, opts = {}) {
       <button class="btn btn-icon btn-ghost" id="note-page-back" title="Zpět">←</button>
       <input type="text" id="note-title" class="note-page-title-input" placeholder="Bez názvu" value="${escapeHtml(note.title)}" />
       <div class="note-page-topbar-actions">
+        <span class="note-page-last-saved" id="note-last-saved">${note.updated_at ? "Upraveno " + fmtDateTime(note.updated_at) : ""}</span>
         <span class="faint" id="ai-status"></span>
         ${noteId ? `<button class="btn btn-danger btn-sm" id="delete-note">Smazat</button>` : ""}
         <button class="btn btn-primary" id="save-note">Uložit</button>
@@ -514,6 +515,9 @@ export async function openNoteEditor(container, noteId, opts = {}) {
       let saved;
       if (noteId) saved = await Notes.update(noteId, fields);
       else saved = await Notes.create(fields);
+      note.updated_at = saved.updated_at;
+      const lastSavedEl = overlay.querySelector("#note-last-saved");
+      if (lastSavedEl) lastSavedEl.textContent = "Upraveno " + fmtDateTime(saved.updated_at);
       toast("Poznámka uložena", "success");
       close();
       if (opts.onSaved) opts.onSaved(saved);

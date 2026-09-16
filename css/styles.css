@@ -440,7 +440,7 @@ label { font-size: 12.5px; color: var(--text-muted); display: block; margin-bott
 }
 .editor-content {
   min-height: 220px; border: 1px solid var(--border); border-radius: 0 0 var(--radius-sm) var(--radius-sm);
-  padding: 14px; background: var(--bg-elevated); outline: none;
+  padding: 14px 14px 26px; background: var(--bg-elevated); outline: none;
 }
 .editor-content:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .editor-content b, .editor-content strong { font-weight: 700; }
@@ -652,6 +652,8 @@ table.fin-table .action { cursor: pointer; color: var(--accent); font-size: 12px
 }
 .note-page-title-input:focus { outline: none; }
 .note-page-topbar-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.note-page-last-saved { font-size: 11.5px; color: var(--text-faint); white-space: nowrap; flex-shrink: 0; }
+@media (max-width: 640px) { .note-page-last-saved { display: none; } }
 .note-page-body { flex: 1; display: flex; overflow: hidden; min-height: 0; }
 .note-page-sidebar {
   width: 260px; flex-shrink: 0; border-right: 1px solid var(--border);
@@ -663,11 +665,11 @@ table.fin-table .action { cursor: pointer; color: var(--accent); font-size: 12px
   display: flex; flex-direction: column;
 }
 .note-page-editor-mount {
-  flex: 1; min-height: 320px; padding: 24px clamp(20px, 6vw, 72px) 0; max-width: 900px; width: 100%; margin: 0 auto;
+  flex: 1; min-height: 320px; padding: 24px clamp(20px, 6vw, 72px) 28px; max-width: 900px; width: 100%; margin: 0 auto;
 }
 .note-page-toolbar {
-  display: flex; gap: 8px; flex-wrap: wrap; padding: 14px clamp(20px, 6vw, 72px) 0;
-  max-width: 900px; width: 100%; margin: 0 auto;
+  display: flex; gap: 8px; flex-wrap: wrap; padding: 20px clamp(20px, 6vw, 72px) 18px;
+  max-width: 900px; width: 100%; margin: 0 auto; border-top: 1px solid var(--border);
 }
 .note-page-attachments {
   padding: 18px clamp(20px, 6vw, 72px) 0; max-width: 900px; width: 100%; margin: 0 auto;
