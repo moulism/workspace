@@ -16,6 +16,16 @@ let discoverResults = [];
 let filterTime = "all";
 let filterDiff = "all";
 let discoverLoading = false;
+let discoverQuery = "";
+let discoverCategories = null; // lazy-loaded list of {name, thumb}
+let activeCategory = null;
+
+const CATEGORY_LABELS = {
+  Beef: "🥩 Hovězí", Chicken: "🍗 Kuřecí", Dessert: "🍰 Dezerty", Lamb: "🐑 Jehněčí",
+  Pasta: "🍝 Těstoviny", Pork: "🥓 Vepřové", Seafood: "🦐 Mořské plody", Side: "🥗 Přílohy",
+  Starter: "🍤 Předkrmy", Vegan: "🌱 Veganské", Vegetarian: "🥕 Vegetariánské",
+  Breakfast: "🍳 Snídaně", Goat: "🐐 Kozí", Miscellaneous: "🍲 Ostatní",
+};
 
 export async function render(container) {
   container.innerHTML = `
@@ -200,7 +210,15 @@ async function renderDiscoverTab(container) {
   const body = container.querySelector("#recipes-body");
   body.innerHTML = `
     <div class="card" style="margin-bottom:16px;">
-      <div class="faint" style="margin-bottom:8px;">Recepty stažené z otevřené databáze TheMealDB — vždy s odhadem doby dne / obtížnosti a seznamem surovin.</div>
+      <div class="faint" style="margin-bottom:10px;">Prohledej velkou otevřenou databázi receptů (TheMealDB) podle názvu nebo si procházej celé kategorie — vždy s odhadem doby dne / obtížnosti a seznamem surovin.</div>
+      <form id="discover-search-form" class="row" style="margin-bottom:10px;">
+        <input type="search" id="discover-search-input" placeholder="Hledat recept podle názvu (anglicky funguje nejlépe)…" value="${escapeHtml(discoverQuery)}" />
+        <button class="btn btn-primary" type="submit" style="flex:0 0 auto;">🔎 Hledat</button>
+      </form>
+      <div class="faint" style="margin:2px 0 6px;">Procházet kategorii:</div>
+      <div class="toolbar" style="margin-bottom:10px;flex-wrap:wrap;gap:6px;" id="discover-categories">
+        <span class="faint">Načítám kategorie…</span>
+      </div>
       <div class="toolbar" style="margin-bottom:8px;">
         <span class="faint" style="margin-right:4px;">Doba dne:</span>
         ${chip("time", "all", "Vše")}${chip("time", "breakfast", "🌅 Snídaně")}${chip("time", "lunch_dinner", "🍽️ Oběd/Večeře")}${chip("time", "snack", "🥐 Svačina")}
@@ -209,7 +227,7 @@ async function renderDiscoverTab(container) {
         <span class="faint" style="margin-right:4px;">Obtížnost:</span>
         ${chip("diff", "all", "Vše")}${chip("diff", "easy", "🟢 Snadné")}${chip("diff", "medium", "🟡 Střední")}${chip("diff", "hard", "🔴 Náročné")}
       </div>
-      <button class="btn btn-primary" id="discover-btn">${discoverResults.length ? "🔄 Načíst další nápady" : "✨ Najít recepty"}</button>
+      <button class="btn" id="discover-btn">${discoverResults.length ? "🔄 Náhodné nápady" : "✨ Náhodné nápady"}</button>
     </div>
     <div class="grid grid-3" id="discover-grid"></div>
   `;
@@ -223,7 +241,91 @@ async function renderDiscoverTab(container) {
     })
   );
   container.querySelector("#discover-btn").addEventListener("click", () => fetchDiscoverBatch(container));
+  container.querySelector("#discover-search-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const q = container.querySelector("#discover-search-input").value.trim();
+    discoverQuery = q;
+    if (q) searchMealsByName(container, q);
+  });
+  loadCategoryChips(container);
   renderDiscoverGrid(container);
+}
+
+async function loadCategoryChips(container) {
+  const mount = container.querySelector("#discover-categories");
+  if (!mount) return;
+  try {
+    if (!discoverCategories) {
+      const res = await fetch(`${MEALDB_BASE}/categories.php`).then((r) => r.json());
+      discoverCategories = (res?.categories || []).map((c) => c.strCategory);
+    }
+    mount.innerHTML = discoverCategories
+      .map((name) => `<button type="button" class="chip ${activeCategory === name ? "active" : ""}" data-category="${escapeHtml(name)}">${CATEGORY_LABELS[name] || name}</button>`)
+      .join("");
+    mount.querySelectorAll("[data-category]").forEach((b) =>
+      b.addEventListener("click", () => {
+        activeCategory = activeCategory === b.dataset.category ? null : b.dataset.category;
+        mount.querySelectorAll("[data-category]").forEach((x) => x.classList.toggle("active", x.dataset.category === activeCategory));
+        if (activeCategory) browseCategory(container, activeCategory);
+      })
+    );
+  } catch {
+    mount.innerHTML = `<span class="faint">Kategorie se nepodařilo načíst.</span>`;
+  }
+}
+
+async function searchMealsByName(container, query) {
+  if (discoverLoading) return;
+  discoverLoading = true;
+  const btn = container.querySelector("#discover-search-form button");
+  if (btn) btn.disabled = true;
+  try {
+    const res = await fetch(`${MEALDB_BASE}/search.php?s=${encodeURIComponent(query)}`).then((r) => r.json());
+    const meals = res?.meals || [];
+    discoverResults = meals.map(normalizeMeal);
+    if (!meals.length) toast(`Nic nenalezeno pro „${query}“. Zkus jiné (anglické) slovo, nebo procházej kategorie níže.`, "error");
+  } catch (e) {
+    toastError("Vyhledávání selhalo. Zkontroluj připojení a zkus to znovu.");
+  } finally {
+    discoverLoading = false;
+    if (btn) btn.disabled = false;
+    renderDiscoverGrid(container);
+  }
+}
+
+async function browseCategory(container, category) {
+  if (discoverLoading) return;
+  discoverLoading = true;
+  try {
+    const res = await fetch(`${MEALDB_BASE}/filter.php?c=${encodeURIComponent(category)}`).then((r) => r.json());
+    const meals = res?.meals || [];
+    discoverResults = meals.map((m) => ({
+      external_id: m.idMeal,
+      source: "themealdb",
+      title: m.strMeal,
+      image_url: m.strMealThumb,
+      category,
+      area: null,
+      ingredients: [],
+      instructions: "",
+      difficulty: null,
+      meal_time: category === "Breakfast" ? "breakfast" : ["Starter", "Side", "Dessert"].includes(category) ? "snack" : "lunch_dinner",
+      tags: [],
+      _light: true,
+    }));
+  } catch (e) {
+    toastError("Nepodařilo se načíst kategorii. Zkontroluj připojení a zkus to znovu.");
+  } finally {
+    discoverLoading = false;
+    renderDiscoverGrid(container);
+  }
+}
+
+async function loadFullMeal(externalId) {
+  const res = await fetch(`${MEALDB_BASE}/lookup.php?i=${encodeURIComponent(externalId)}`).then((r) => r.json());
+  const meal = res?.meals?.[0];
+  if (!meal) throw new Error("Recept se nepodařilo načíst.");
+  return normalizeMeal(meal);
 }
 
 function chip(group, val, label) {
@@ -300,11 +402,11 @@ function renderDiscoverGrid(container) {
   const grid = container.querySelector("#discover-grid");
   if (!grid) return;
   const filtered = discoverResults.filter(
-    (m) => (filterTime === "all" || m.meal_time === filterTime) && (filterDiff === "all" || m.difficulty === filterDiff)
+    (m) => (m._light || filterTime === "all" || m.meal_time === filterTime) && (m._light || filterDiff === "all" || m.difficulty === filterDiff)
   );
   if (!filtered.length) {
     grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="big">✨</div>${
-      discoverResults.length ? "Žádné recepty neodpovídají filtru — zkus jiný, nebo načti další nápady." : "Klikni na „Najít recepty“ a stáhnu pár nápadů z internetu."
+      discoverResults.length ? "Žádné recepty neodpovídají filtru — zkus jiný, nebo hledej/procházej znovu." : "Vyhledej recept podle názvu, procházej kategorii, nebo klikni na „Náhodné nápady“."
     }</div>`;
     return;
   }
@@ -316,8 +418,7 @@ function renderDiscoverGrid(container) {
         <div class="faint" style="margin-top:4px;">${escapeHtml(m.area || "")} ${m.category ? "· " + escapeHtml(m.category) : ""}</div>
         <div style="margin-top:8px;display:flex;gap:5px;flex-wrap:wrap;">
           <span class="pill">${MEALTIME_LABEL[m.meal_time]}</span>
-          <span class="pill">${DIFF_LABEL[m.difficulty]}</span>
-          <span class="pill">${m.ingredients.length} surovin</span>
+          ${m._light ? "" : `<span class="pill">${DIFF_LABEL[m.difficulty]}</span><span class="pill">${m.ingredients.length} surovin</span>`}
         </div>
       </div>`
     )
@@ -327,7 +428,17 @@ function renderDiscoverGrid(container) {
   );
 }
 
-function openDiscoverModal(container, meal) {
+async function openDiscoverModal(container, meal) {
+  if (meal._light) {
+    try {
+      const full = await loadFullMeal(meal.external_id);
+      Object.assign(meal, full);
+      delete meal._light;
+    } catch (e) {
+      toastError(e);
+      return;
+    }
+  }
   const { el: modalEl, close } = openModal(
     `<div class="modal-header"><h3 class="truncate">${escapeHtml(meal.title)}</h3><button class="btn btn-icon btn-ghost" data-close>✕</button></div>
      <div class="recipe-media"><img src="${escapeHtml(meal.image_url)}" alt="" /></div>

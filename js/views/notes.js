@@ -43,6 +43,38 @@ function dueBadge(dueDate) {
   return `<span class="${cls}">⏰ ${label}</span>`;
 }
 
+/** Builds a parent_id -> children tree from a flat folder list. */
+function buildFolderTree(folders) {
+  const byId = Object.fromEntries(folders.map((f) => [f.id, { ...f, children: [] }]));
+  const roots = [];
+  for (const f of folders) {
+    const node = byId[f.id];
+    if (f.parent_id && byId[f.parent_id]) byId[f.parent_id].children.push(node);
+    else roots.push(node);
+  }
+  return roots;
+}
+
+/** Renders a nested folder tree as HTML. Rows carry data-select / data-add-sub / data-edit-folder. */
+function renderFolderTreeHtml(nodes, selectedId, depth = 0) {
+  if (!nodes.length && depth === 0) return `<div class="faint" style="padding:6px 0;">Zatím žádné.</div>`;
+  return nodes
+    .map(
+      (n) => `
+      <div class="folder-row ${selectedId === n.id ? "active" : ""}" data-folder="${n.id}" style="padding-left:${8 + depth * 16}px;">
+        <span class="folder-row-main" data-select="${n.id}">
+          ${n.icon ? `<span>${escapeHtml(n.icon)}</span>` : `<span class="dot" style="background:${n.color || "#888"}"></span>`}
+          <span class="truncate">${escapeHtml(n.name)}</span>
+        </span>
+        <button type="button" class="folder-edit-btn" data-add-sub="${n.id}" title="Přidat podsložku">+</button>
+        <button type="button" class="folder-edit-btn" data-edit-folder="${n.id}" title="Upravit">✎</button>
+      </div>
+      ${n.children.length ? renderFolderTreeHtml(n.children, selectedId, depth + 1) : ""}
+    `
+    )
+    .join("");
+}
+
 export async function render(container) {
   container.innerHTML = `
     <div class="section-header">
@@ -128,55 +160,52 @@ async function renderFolderPanel(container) {
   const panel = container.querySelector("#folder-panel");
   try {
     const folders = await Folders.list(state.area);
+    const tree = buildFolderTree(folders);
     panel.innerHTML = `
       <div class="faint" style="margin-bottom:8px;">${state.area === "school" ? "PŘEDMĚTY" : "SLOŽKY"}</div>
       <div class="nav-item ${!state.folderId ? "active" : ""}" data-folder="">Vše</div>
-      ${folders
-        .map(
-          (f) => `<div class="folder-row ${state.folderId === f.id ? "active" : ""}" data-folder="${f.id}">
-            <span class="folder-row-main">
-              ${f.icon ? `<span>${escapeHtml(f.icon)}</span>` : `<span class="dot" style="background:${f.color || "#888"}"></span>`}
-              <span class="truncate">${escapeHtml(f.name)}</span>
-            </span>
-            <button type="button" class="folder-edit-btn" data-edit-folder="${f.id}" title="Upravit">✎</button>
-          </div>`
-        )
-        .join("")}
+      <div class="folder-tree">${renderFolderTreeHtml(tree, state.folderId)}</div>
       <button class="btn btn-ghost btn-sm" id="add-folder-btn" style="margin-top:8px;width:100%;">+ ${state.area === "school" ? "Předmět" : "Složka"}</button>
     `;
-    panel.querySelectorAll(".folder-row").forEach((n) =>
-      n.addEventListener("click", (ev) => {
-        if (ev.target.closest("[data-edit-folder]")) return;
-        state.folderId = n.dataset.folder || null;
-        loadNotesList(container);
-        panel.querySelectorAll(".folder-row, .nav-item[data-folder]").forEach((x) => x.classList.remove("active"));
-        n.classList.add("active");
-      })
-    );
-    panel.querySelector('[data-folder=""]').addEventListener("click", () => {
-      state.folderId = null;
+    function selectFolder(id) {
+      state.folderId = id || null;
       loadNotesList(container);
       panel.querySelectorAll(".folder-row, .nav-item[data-folder]").forEach((x) => x.classList.remove("active"));
-      panel.querySelector('[data-folder=""]').classList.add("active");
-    });
+      const row = id ? panel.querySelector(`.folder-row[data-folder="${id}"]`) : panel.querySelector('[data-folder=""]');
+      row?.classList.add("active");
+    }
+    panel.querySelectorAll("[data-select]").forEach((s) => s.addEventListener("click", () => selectFolder(s.dataset.select)));
+    panel.querySelector('[data-folder=""]').addEventListener("click", () => selectFolder(null));
     panel.querySelectorAll("[data-edit-folder]").forEach((b) =>
       b.addEventListener("click", (ev) => {
         ev.stopPropagation();
         const folder = folders.find((f) => f.id === b.dataset.editFolder);
-        openFolderModal(container, folder);
+        openFolderModal(container, folder, { area: state.area, onDone: () => renderFolderPanel(container) });
       })
     );
-    panel.querySelector("#add-folder-btn").addEventListener("click", () => openFolderModal(container));
+    panel.querySelectorAll("[data-add-sub]").forEach((b) =>
+      b.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        openFolderModal(container, null, { area: state.area, parentId: b.dataset.addSub, onDone: () => renderFolderPanel(container) });
+      })
+    );
+    panel.querySelector("#add-folder-btn").addEventListener("click", () =>
+      openFolderModal(container, null, { area: state.area, onDone: () => renderFolderPanel(container) })
+    );
   } catch (e) {
     toastError(e);
   }
 }
 
-async function openFolderModal(container, folder) {
+async function openFolderModal(container, folder, opts = {}) {
   const isNew = !folder;
-  const isSchool = state.area === "school";
+  const area = folder?.area || opts.area || state.area;
+  const isSchool = area === "school";
+  const onDone = opts.onDone || (() => render(container));
+  const childCount = folder?._childCount || 0;
   const { el: modalEl, close } = openModal(`
     <div class="modal-header"><h3>${isNew ? (isSchool ? "Nový předmět" : "Nová složka") : (isSchool ? "Upravit předmět" : "Upravit složku")}</h3><button class="btn btn-icon btn-ghost" data-close>✕</button></div>
+    ${opts.parentId ? `<div class="faint" style="margin-bottom:10px;">Podsložka</div>` : ""}
     <div class="field"><label>Název</label><input type="text" id="folder-name" value="${escapeHtml(folder?.name || "")}" placeholder="${isSchool ? "např. Matematika" : "Název"}" /></div>
     <div class="field">
       <label>Ikona (emoji, nepovinné)</label>
@@ -220,10 +249,11 @@ async function openFolderModal(container, folder) {
       color: modalEl.querySelector("#folder-color").value,
     };
     try {
-      if (isNew) await Folders.create({ area: state.area, ...fields });
-      else await Folders.update(folder.id, fields);
+      let saved;
+      if (isNew) saved = await Folders.create({ area, parent_id: opts.parentId || null, ...fields });
+      else saved = await Folders.update(folder.id, fields);
       close();
-      render(container);
+      onDone(saved);
     } catch (e) {
       toastError(e);
     }
@@ -231,12 +261,12 @@ async function openFolderModal(container, folder) {
 
   if (!isNew) {
     modalEl.querySelector("#folder-delete").addEventListener("click", async () => {
-      if (await confirmDialog(`Smazat "${folder.name}"? Poznámky uvnitř zůstanou, jen ztratí přiřazení.`)) {
+      if (await confirmDialog(`Smazat "${folder.name}"? Poznámky uvnitř zůstanou, jen ztratí přiřazení. Případné podsložky budou smazány také.`)) {
         try {
           await Folders.remove(folder.id);
           if (state.folderId === folder.id) state.folderId = null;
           close();
-          render(container);
+          onDone();
         } catch (e) {
           toastError(e);
         }
@@ -279,7 +309,9 @@ async function loadNotesList(container) {
 }
 
 /**
- * Opens the note editor modal.
+ * Opens the full-page (Notion-style) note editor as a fixed overlay on top
+ * of the whole app — not a small modal bubble. Left side: area + nested
+ * folder/subfolder picker. Right side: big title + rich text editor.
  *
  * @param {HTMLElement} container - the view container (used to refresh the
  *   Notes list after save/delete when no custom callbacks are given).
@@ -313,89 +345,159 @@ export async function openNoteEditor(container, noteId, opts = {}) {
       };
   if (!note) return;
 
-  let folders = [];
-  try {
-    folders = await Folders.list(note.area);
-  } catch {}
+  const overlay = document.createElement("div");
+  overlay.className = "note-page-overlay";
+  overlay.innerHTML = `
+    <div class="note-page-topbar">
+      <button class="btn btn-icon btn-ghost" id="note-page-back" title="Zpět">←</button>
+      <input type="text" id="note-title" class="note-page-title-input" placeholder="Bez názvu" value="${escapeHtml(note.title)}" />
+      <div class="note-page-topbar-actions">
+        <span class="faint" id="ai-status"></span>
+        ${noteId ? `<button class="btn btn-danger btn-sm" id="delete-note">Smazat</button>` : ""}
+        <button class="btn btn-primary" id="save-note">Uložit</button>
+      </div>
+    </div>
+    <div class="note-page-body">
+      <button class="btn btn-ghost btn-sm note-page-sidebar-toggle" id="note-page-sidebar-toggle">📁 ${note.area === "school" ? "Předmět" : "Složka"}</button>
+      <div class="note-page-sidebar" id="note-page-sidebar">
+        <div class="faint" style="margin-bottom:8px;">OBLAST</div>
+        <div class="toolbar" style="margin-bottom:16px;flex-wrap:wrap;" id="note-area-chips">
+          ${AREAS.map((a) => `<button type="button" class="chip ${note.area === a.id ? "active" : ""}" data-note-area="${a.id}">${a.label}</button>`).join("")}
+        </div>
+        <div class="faint" style="margin-bottom:8px;" id="note-folder-label">${note.area === "school" ? "PŘEDMĚT" : "SLOŽKA"}</div>
+        <div class="folder-tree" id="note-folder-tree"></div>
+        <button class="btn btn-ghost btn-sm" id="note-add-folder" style="margin-top:10px;width:100%;">+ ${note.area === "school" ? "Předmět" : "Složka"}</button>
+        <hr style="margin:18px 0;border:none;border-top:1px solid var(--border);" />
+        <div class="field"><label>Termín (nepovinné)</label><input type="date" id="note-due" value="${note.due_date || ""}" /></div>
+        <div class="field"><label>Štítky</label><input type="text" id="note-tags" placeholder="štítek1, štítek2" value="${escapeHtml((note.tags || []).join(", "))}" /></div>
+      </div>
+      <div class="note-page-main">
+        <div id="note-editor-mount" class="note-page-editor-mount"></div>
+        <div class="note-page-toolbar">
+          <button class="btn btn-sm" id="ai-flashcards">✨ Flashcards</button>
+          <button class="btn btn-sm" id="ai-quiz">✨ Test</button>
+          <button class="btn btn-sm" id="ai-summary">✨ Shrnutí</button>
+          <button class="btn btn-sm" id="export-pdf">📄 PDF</button>
+          <button class="btn btn-sm" id="export-html">🔗 Export pro kamarády</button>
+        </div>
+        <div class="note-page-attachments">
+          <label>Přílohy</label>
+          ${
+            noteId
+              ? `<div class="list" id="attachments-list" style="margin-bottom:8px;"></div><input type="file" id="attachment-input" />`
+              : `<div class="faint">Nejdřív poznámku ulož, pak k ní budeš moct přidat soubory.</div>`
+          }
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.body.classList.add("note-page-open");
 
-  const { el: modalEl, close } = openModal(
-    `<div class="modal-header">
-       <input type="text" id="note-title" placeholder="Název poznámky" style="font-size:17px;font-weight:600;border:none;padding:4px 0;" value="${escapeHtml(note.title)}" />
-       <button class="btn btn-icon btn-ghost" data-close>✕</button>
-     </div>
-     <div class="row" style="margin-bottom:10px;">
-       <div class="field" style="margin-bottom:0;">
-         <label>${note.area === "school" ? "Předmět" : "Složka"}</label>
-         <select id="note-folder">
-           <option value="">— bez ${note.area === "school" ? "předmětu" : "složky"} —</option>
-           ${folders.map((f) => `<option value="${f.id}" ${note.folder_id === f.id ? "selected" : ""}>${f.icon ? f.icon + " " : ""}${escapeHtml(f.name)}</option>`).join("")}
-         </select>
-       </div>
-       <div class="field" style="margin-bottom:0;">
-         <label>${note.area === "school" ? "Termín / zkouška" : "Termín"} (nepovinné)</label>
-         <input type="date" id="note-due" value="${note.due_date || ""}" />
-       </div>
-     </div>
-     <div id="note-editor-mount"></div>
-     <div class="field" style="margin-top:10px;">
-       <label>Štítky (oddělené čárkou)</label>
-       <input type="text" id="note-tags" value="${escapeHtml((note.tags || []).join(", "))}" />
-     </div>
-     <div class="toolbar" style="margin-top:10px;">
-       <button class="btn btn-sm" id="ai-flashcards">✨ Flashcards</button>
-       <button class="btn btn-sm" id="ai-quiz">✨ Test</button>
-       <button class="btn btn-sm" id="ai-summary">✨ Shrnutí</button>
-       <button class="btn btn-sm" id="export-pdf">📄 PDF</button>
-       <button class="btn btn-sm" id="export-html">🔗 Export pro kamarády (HTML)</button>
-       <span class="faint" id="ai-status"></span>
-     </div>
-     <div style="margin-top:16px;">
-       <label>Přílohy</label>
-       ${
-         noteId
-           ? `<div class="list" id="attachments-list" style="margin-bottom:8px;"></div>
-              <input type="file" id="attachment-input" />`
-           : `<div class="faint">Nejdřív poznámku ulož, pak k ní budeš moct přidat soubory.</div>`
-       }
-     </div>
-     <div class="modal-actions">
-       ${noteId ? `<button class="btn btn-danger" id="delete-note" style="margin-right:auto;">Smazat</button>` : ""}
-       <button class="btn" data-close>Zavřít</button>
-       <button class="btn btn-primary" id="save-note">Uložit</button>
-     </div>`,
-    { large: true }
+  function close() {
+    document.removeEventListener("keydown", escHandler);
+    overlay.remove();
+    document.body.classList.remove("note-page-open");
+  }
+  function escHandler(e) {
+    if (e.key === "Escape") close();
+  }
+  document.addEventListener("keydown", escHandler);
+  overlay.querySelector("#note-page-back").addEventListener("click", close);
+  overlay.querySelector("#note-page-sidebar-toggle").addEventListener("click", () => {
+    overlay.querySelector("#note-page-sidebar").classList.toggle("open");
+  });
+
+  const editor = createEditor(overlay.querySelector("#note-editor-mount"), note.content);
+
+  async function refreshFolderTree() {
+    const wrap = overlay.querySelector("#note-folder-tree");
+    try {
+      const folders = await Folders.list(note.area);
+      const tree = buildFolderTree(folders);
+      wrap.innerHTML = renderFolderTreeHtml(tree, note.folder_id);
+      wrap.querySelectorAll("[data-select]").forEach((s) =>
+        s.addEventListener("click", () => {
+          note.folder_id = s.dataset.select;
+          wrap.querySelectorAll(".folder-row").forEach((r) => r.classList.toggle("active", r.dataset.folder === note.folder_id));
+        })
+      );
+      wrap.querySelectorAll("[data-add-sub]").forEach((b) =>
+        b.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          openFolderModal(container, null, {
+            area: note.area,
+            parentId: b.dataset.addSub,
+            onDone: (saved) => {
+              if (saved) note.folder_id = saved.id;
+              refreshFolderTree();
+            },
+          });
+        })
+      );
+      wrap.querySelectorAll("[data-edit-folder]").forEach((b) =>
+        b.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          const folder = folders.find((f) => f.id === b.dataset.editFolder);
+          openFolderModal(container, folder, { area: note.area, onDone: () => refreshFolderTree() });
+        })
+      );
+    } catch (e) {
+      wrap.innerHTML = `<div class="faint">Nepodařilo se načíst.</div>`;
+    }
+  }
+  await refreshFolderTree();
+
+  overlay.querySelector("#note-add-folder").addEventListener("click", () =>
+    openFolderModal(container, null, {
+      area: note.area,
+      onDone: (saved) => {
+        if (saved) note.folder_id = saved.id;
+        refreshFolderTree();
+      },
+    })
   );
 
-  const editor = createEditor(modalEl.querySelector("#note-editor-mount"), note.content);
+  overlay.querySelectorAll("[data-note-area]").forEach((b) =>
+    b.addEventListener("click", () => {
+      note.area = b.dataset.noteArea;
+      note.folder_id = null;
+      overlay.querySelectorAll("[data-note-area]").forEach((x) => x.classList.toggle("active", x === b));
+      overlay.querySelector("#note-folder-label").textContent = note.area === "school" ? "PŘEDMĚT" : "SLOŽKA";
+      overlay.querySelector("#note-add-folder").textContent = `+ ${note.area === "school" ? "Předmět" : "Složka"}`;
+      overlay.querySelector("#note-page-sidebar-toggle").textContent = `📁 ${note.area === "school" ? "Předmět" : "Složka"}`;
+      refreshFolderTree();
+    })
+  );
 
-  modalEl.querySelector("#export-pdf").addEventListener("click", () => {
-    const title = modalEl.querySelector("#note-title").value.trim() || "Bez názvu";
+  overlay.querySelector("#export-pdf").addEventListener("click", () => {
+    const title = overlay.querySelector("#note-title").value.trim() || "Bez názvu";
     exportNoteToPdf(title, editor.getHtml());
   });
-  modalEl.querySelector("#export-html").addEventListener("click", () => {
-    const title = modalEl.querySelector("#note-title").value.trim() || "Bez názvu";
+  overlay.querySelector("#export-html").addEventListener("click", () => {
+    const title = overlay.querySelector("#note-title").value.trim() || "Bez názvu";
     exportNoteToHtmlFile(title, editor.getHtml());
     toast("Staženo jako HTML soubor — klidně pošli kamarádům", "success");
   });
 
   if (noteId) {
-    loadAttachments(modalEl, noteId);
-    modalEl.querySelector("#attachment-input").addEventListener("change", async (e) => {
+    loadAttachments(overlay, noteId);
+    overlay.querySelector("#attachment-input").addEventListener("change", async (e) => {
       const file = e.target.files[0];
       if (!file) return;
       try {
         await Attachments.upload(noteId, file);
         e.target.value = "";
-        loadAttachments(modalEl, noteId);
+        loadAttachments(overlay, noteId);
       } catch (err) {
         toastError(err);
       }
     });
   }
 
-  modalEl.querySelector("#save-note").addEventListener("click", async () => {
-    const title = modalEl.querySelector("#note-title").value.trim() || "Bez názvu";
-    const tags = modalEl
+  overlay.querySelector("#save-note").addEventListener("click", async () => {
+    const title = overlay.querySelector("#note-title").value.trim() || "Bez názvu";
+    const tags = overlay
       .querySelector("#note-tags")
       .value.split(",")
       .map((t) => t.trim())
@@ -405,8 +507,8 @@ export async function openNoteEditor(container, noteId, opts = {}) {
       content: editor.getHtml(),
       tags,
       area: note.area,
-      folder_id: modalEl.querySelector("#note-folder").value || null,
-      due_date: modalEl.querySelector("#note-due").value || null,
+      folder_id: note.folder_id || null,
+      due_date: overlay.querySelector("#note-due").value || null,
     };
     try {
       let saved;
@@ -422,7 +524,7 @@ export async function openNoteEditor(container, noteId, opts = {}) {
   });
 
   if (noteId) {
-    modalEl.querySelector("#delete-note").addEventListener("click", async () => {
+    overlay.querySelector("#delete-note").addEventListener("click", async () => {
       if (await confirmDialog("Smazat tuto poznámku?")) {
         await Notes.remove(noteId);
         close();
@@ -432,22 +534,22 @@ export async function openNoteEditor(container, noteId, opts = {}) {
     });
   }
 
-  const statusEl = modalEl.querySelector("#ai-status");
+  const statusEl = overlay.querySelector("#ai-status");
   const setStatus = (t) => (statusEl.textContent = t);
 
-  modalEl.querySelector("#ai-flashcards").addEventListener("click", () =>
+  overlay.querySelector("#ai-flashcards").addEventListener("click", () =>
     runAi("flashcards", editor, note, setStatus, async (result) => {
       await FlashcardSets.createWithCards(note.title || "Flashcards", noteId || null, result);
       toast(`Vytvořeno ${result.length} kartiček ve Studijních materiálech`, "success");
     })
   );
-  modalEl.querySelector("#ai-quiz").addEventListener("click", () =>
+  overlay.querySelector("#ai-quiz").addEventListener("click", () =>
     runAi("quiz", editor, note, setStatus, async (result) => {
       await Quizzes.createWithQuestions(note.title || "Test", noteId || null, result);
       toast(`Vytvořen test s ${result.length} otázkami ve Studijních materiálech`, "success");
     })
   );
-  modalEl.querySelector("#ai-summary").addEventListener("click", () =>
+  overlay.querySelector("#ai-summary").addEventListener("click", () =>
     runAi("summary", editor, note, setStatus, async (result) => {
       openModal(
         `<div class="modal-header"><h3>Shrnutí</h3><button class="btn btn-icon btn-ghost" data-close>✕</button></div>
@@ -457,6 +559,7 @@ export async function openNoteEditor(container, noteId, opts = {}) {
     })
   );
 }
+
 
 async function loadAttachments(modalEl, noteId) {
   const box = modalEl.querySelector("#attachments-list");

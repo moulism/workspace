@@ -77,17 +77,22 @@ export async function render(container) {
       </div>
       <div class="card">
         <div class="panel-title" style="font-weight:600;margin-bottom:10px;">Přidat výdaj</div>
-        <form id="fin-form" class="row" style="margin-bottom:16px;flex-wrap:wrap;">
+        <form id="fin-form" style="margin-bottom:16px;">
           <input type="hidden" id="fin-edit-id" />
-          <input type="date" id="fin-date" required />
-          <select id="fin-category"></select>
-          <input type="number" id="fin-amount" placeholder="Částka (Kč)" required step="0.01" />
-          <button class="btn btn-primary" type="submit" id="fin-submit-btn">Uložit</button>
+          <div class="row" style="flex-wrap:wrap;margin-bottom:8px;">
+            <input type="date" id="fin-date" required style="max-width:150px;" />
+            <select id="fin-category" style="max-width:160px;"></select>
+            <input type="number" id="fin-amount" placeholder="Částka (Kč)" required step="0.01" style="max-width:130px;" />
+          </div>
+          <div class="row" style="flex-wrap:wrap;">
+            <input type="text" id="fin-note" placeholder="Poznámka (na co, nepovinné)…" />
+            <button class="btn btn-primary" type="submit" id="fin-submit-btn" style="flex:0 0 auto;">Uložit</button>
+          </div>
         </form>
         <div class="panel-title" style="font-weight:600;margin-bottom:8px;">Záznamy</div>
         <div style="overflow-x:auto;">
           <table class="fin-table">
-            <thead><tr><th>Datum</th><th>Kategorie</th><th>Kč</th><th></th></tr></thead>
+            <thead><tr><th>Datum</th><th>Kategorie</th><th>Poznámka</th><th>Kč</th><th></th></tr></thead>
             <tbody id="fin-table-body"></tbody>
           </table>
         </div>
@@ -122,6 +127,7 @@ export async function render(container) {
       occurred_on: container.querySelector("#fin-date").value,
       category: container.querySelector("#fin-category").value,
       amount: Number(container.querySelector("#fin-amount").value) || 0,
+      note: container.querySelector("#fin-note").value.trim() || null,
     };
     try {
       if (idEl.value) await FinanceTransactions.update(idEl.value, fields);
@@ -266,6 +272,7 @@ function renderTable(container, filtered) {
       (t) => `<tr>
         <td>${escapeHtml(t.occurred_on)}</td>
         <td>${escapeHtml(t.category)}</td>
+        <td class="faint truncate" style="max-width:160px;">${t.note ? escapeHtml(t.note) : ""}</td>
         <td>${Number(t.amount).toLocaleString("cs-CZ")}</td>
         <td>
           <span class="action" data-edit="${t.id}">Upravit</span>
@@ -282,6 +289,7 @@ function renderTable(container, filtered) {
       container.querySelector("#fin-date").value = t.occurred_on;
       container.querySelector("#fin-category").value = t.category;
       container.querySelector("#fin-amount").value = t.amount;
+      container.querySelector("#fin-note").value = t.note || "";
       container.querySelector("#fin-submit-btn").textContent = "Uložit změny";
       container.querySelector("#fin-form").scrollIntoView({ behavior: "smooth", block: "center" });
     })

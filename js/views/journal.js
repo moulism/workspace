@@ -75,6 +75,18 @@ export async function render(container) {
   container.innerHTML = `<div class="center" style="padding:60px;"><div class="spinner"></div></div>`;
   try {
     state.cycle = await JournalCycles.getActive();
+    if (!state.cycle) {
+      // Deník se chová jako už existující kniha — žádné "založení" navíc,
+      // první otevření si tiše připraví aktivní 90denní cyklus na pozadí.
+      state.cycle = await JournalCycles.create({
+        title: "Můj deník",
+        start_date: todayIso(),
+        end_date: addDaysIso(todayIso(), 89),
+        theme: null,
+        goals: [],
+        status: "active",
+      });
+    }
   } catch (e) {
     toastError(e);
   }

@@ -46,7 +46,18 @@ function startOfWeek(d) {
   return copy;
 }
 
-function catColor(cat) {
+let folderColorMap = {};
+async function refreshFolderColors() {
+  try {
+    const all = await Folders.list();
+    folderColorMap = Object.fromEntries(all.filter((f) => f.color).map((f) => [f.id, f.color]));
+  } catch {
+    folderColorMap = {};
+  }
+}
+
+function catColor(cat, folderId) {
+  if (folderId && folderColorMap[folderId]) return folderColorMap[folderId];
   return { school: "#4f46e5", work: "#0f766e", gym: "#dc4c3f", personal: "#c98a1f", other: "#6b6a68" }[cat] || "#6b6a68";
 }
 
@@ -157,6 +168,7 @@ async function loadRange(fromIso, toIso_) {
   let events = [];
   let todos = [];
   let notes = [];
+  await refreshFolderColors();
   try {
     const [plain, recurringMasters] = await Promise.all([Events.listRange(startFull, endFull), Events.listAllRecurring()]);
     const rangeStart = new Date(startFull);
@@ -293,7 +305,7 @@ async function renderDay(container, body) {
         !dayEvents.length && !todos.length && !notes.length
           ? `<div class="empty-state"><div class="big">🗓️</div>Žádné události ani termíny.</div>`
           : `
-          ${dayEvents.map((e) => `<div class="cal-agenda-item" data-evt="${e._occId || e.id}"><span class="dot cat-${e.category}"></span><b>${e.all_day ? "Celý den" : fmtTimeShort(e.start_at)}</b> — ${escapeHtml(e.title)}${e._isRecurring ? ` <span class="faint">↻</span>` : ""}${e.location ? ` <span class="faint">· ${escapeHtml(e.location)}</span>` : ""}</div>`).join("")}
+          ${dayEvents.map((e) => `<div class="cal-agenda-item" data-evt="${e._occId || e.id}"><span class="dot" style="background:${catColor(e.category, e.folder_id)}"></span><b>${e.all_day ? "Celý den" : fmtTimeShort(e.start_at)}</b> — ${escapeHtml(e.title)}${e._isRecurring ? ` <span class="faint">↻</span>` : ""}${e.location ? ` <span class="faint">· ${escapeHtml(e.location)}</span>` : ""}</div>`).join("")}
           ${todos.map((t) => renderChip(t, "todo", true)).join("")}
           ${notes.map((n) => renderChip(n, "note", true)).join("")}
         `
@@ -359,7 +371,7 @@ async function renderYear(container, body) {
 
 function renderChip(item, kind, block) {
   if (kind === "event") {
-    return `<div class="cal-evt ${block ? "cal-evt-block" : ""} ${item._isRecurring ? "cal-evt-recur" : ""}" data-evt="${item._occId || item.id}" style="background:${catColor(item.category)}">${item.all_day ? "" : fmtTimeShort(item.start_at) + " "}${escapeHtml(item.title)}</div>`;
+    return `<div class="cal-evt ${block ? "cal-evt-block" : ""} ${item._isRecurring ? "cal-evt-recur" : ""}" data-evt="${item._occId || item.id}" style="background:${catColor(item.category, item.folder_id)}">${item.all_day ? "" : fmtTimeShort(item.start_at) + " "}${escapeHtml(item.title)}</div>`;
   }
   if (kind === "todo") {
     return `<div class="cal-evt cal-evt-task ${block ? "cal-evt-block" : ""}" data-todo="${item.id}" style="border-color:${catColor(item.area)};color:${catColor(item.area)}">✓ ${escapeHtml(item.title)}</div>`;

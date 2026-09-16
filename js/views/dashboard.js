@@ -1,4 +1,4 @@
-import { Events, Todos, Goals } from "../db.js";
+import { Events, Todos, Goals, Folders } from "../db.js";
 import { escapeHtml, fmtTime, fmtDate, todayIso, CATEGORY_COLORS } from "../ui.js";
 import { toastError } from "../toast.js";
 import { hasGoogle, Gmail } from "../google.js";
@@ -79,7 +79,11 @@ async function loadTodayEvents(container) {
     start.setHours(0, 0, 0, 0);
     const end = new Date();
     end.setHours(23, 59, 59, 999);
-    const events = await Events.listRange(start.toISOString(), end.toISOString());
+    const [events, folders] = await Promise.all([
+      Events.listRange(start.toISOString(), end.toISOString()),
+      Folders.list().catch(() => []),
+    ]);
+    const folderColor = Object.fromEntries((folders || []).filter((f) => f.color).map((f) => [f.id, f.color]));
     if (!events.length) {
       box.innerHTML = `<div class="faint">Dnes žádné události.</div>`;
       return;
@@ -87,10 +91,10 @@ async function loadTodayEvents(container) {
     box.innerHTML = events
       .map(
         (e) => `<div class="list-item">
-          <span class="dot cat-${e.category}"></span>
+          <span class="dot" style="background:${(e.folder_id && folderColor[e.folder_id]) || CATEGORY_COLORS[e.category] || "#6b6a68"}"></span>
           <div class="grow">
             <div class="title truncate">${escapeHtml(e.title)}</div>
-            <div class="faint">${e.all_day ? "celý den" : fmtTime(e.start_at)}</div>
+            <div class="faint">${e.all_day ? "celý den" : fmtTime(e.start_at)}${e.location ? " · " + escapeHtml(e.location) : ""}</div>
           </div>
         </div>`
       )
@@ -103,26 +107,30 @@ async function loadTodayEvents(container) {
 async function loadDueTodos(container) {
   const box = container.querySelector("#due-todos");
   try {
-    const todos = await Todos.list({ done: false, to: todayIso() });
-    const overdue = await Todos.list({ done: false });
-    const all = [...todos];
-    const seen = new Set(all.map((t) => t.id));
-    for (const t of overdue) if (t.due_date && t.due_date <= todayIso() && !seen.has(t.id)) all.push(t);
-    if (!all.length) {
-      box.innerHTML = `<div class="faint">Nic po termínu ani na dnes 🎉</div>`;
+    const all = await Todos.list({ done: false });
+    const today = todayIso();
+    const horizon = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+    const relevant = all.filter((t) => !t.due_date || t.due_date <= horizon);
+    relevant.sort((a, b) => (a.due_date || "9999").localeCompare(b.due_date || "9999"));
+    if (!relevant.length) {
+      box.innerHTML = `<div class="faint">Nic po termínu ani v nejbližších 14 dnech 🎉</div>`;
       return;
     }
-    box.innerHTML = all
+    box.innerHTML = relevant
       .slice(0, 6)
-      .map(
-        (t) => `<label class="list-item">
+      .map((t) => {
+        const overdue = t.due_date && t.due_date < today;
+        const isToday = t.due_date === today;
+        return `<label class="list-item">
           <input type="checkbox" data-id="${t.id}" class="todo-check" />
           <div class="grow">
             <div class="title truncate">${escapeHtml(t.title)}</div>
-            <div class="faint">${t.due_date ? fmtDate(t.due_date) : ""}</div>
+            <div class="faint" style="${overdue ? "color:var(--danger);font-weight:600;" : ""}">${
+          t.due_date ? (overdue ? "po termínu · " : isToday ? "dnes" : "") + (isToday ? "" : fmtDate(t.due_date)) : "bez termínu"
+        }</div>
           </div>
-        </label>`
-      )
+        </label>`;
+      })
       .join("");
     box.querySelectorAll(".todo-check").forEach((cb) =>
       cb.addEventListener("change", async () => {

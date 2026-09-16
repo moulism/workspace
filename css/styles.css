@@ -632,3 +632,72 @@ table.fin-table .action { cursor: pointer; color: var(--accent); font-size: 12px
 .editor-content .note-divider, .note-render .note-divider {
   border: none; border-top: 1px solid var(--border); margin: 14px 0;
 }
+
+/* ============ Full-page (Notion-style) note editor ============ */
+.note-page-overlay {
+  position: fixed; inset: 0; z-index: 300;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  animation: notePageIn .16s ease;
+}
+@keyframes notePageIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.note-page-topbar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 18px; border-bottom: 1px solid var(--border);
+  flex-shrink: 0; background: var(--bg-elevated);
+}
+.note-page-title-input {
+  flex: 1; font-size: 20px; font-weight: 700; border: none; background: transparent;
+  color: var(--text); padding: 6px 4px; min-width: 0;
+}
+.note-page-title-input:focus { outline: none; }
+.note-page-topbar-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.note-page-body { flex: 1; display: flex; overflow: hidden; min-height: 0; }
+.note-page-sidebar {
+  width: 260px; flex-shrink: 0; border-right: 1px solid var(--border);
+  overflow-y: auto; padding: 18px 14px; background: var(--bg);
+}
+.note-page-sidebar-toggle { display: none; margin: 8px 12px 0; }
+.note-page-main {
+  flex: 1; overflow-y: auto; padding: 8px 0 40px;
+  display: flex; flex-direction: column;
+}
+.note-page-editor-mount {
+  flex: 1; min-height: 320px; padding: 24px clamp(20px, 6vw, 72px) 0; max-width: 900px; width: 100%; margin: 0 auto;
+}
+.note-page-toolbar {
+  display: flex; gap: 8px; flex-wrap: wrap; padding: 14px clamp(20px, 6vw, 72px) 0;
+  max-width: 900px; width: 100%; margin: 0 auto;
+}
+.note-page-attachments {
+  padding: 18px clamp(20px, 6vw, 72px) 0; max-width: 900px; width: 100%; margin: 0 auto;
+}
+body.note-page-open { overflow: hidden; }
+
+.folder-tree .folder-row {
+  display: flex; align-items: center; gap: 4px; padding: 6px 4px;
+  border-radius: 6px; cursor: default; font-size: 13px;
+}
+.folder-tree .folder-row:hover { background: var(--bg-hover); }
+.folder-tree .folder-row.active { background: var(--accent-soft); }
+.folder-tree .folder-row.active .folder-row-main { color: var(--accent); font-weight: 600; }
+.folder-row-main { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; cursor: pointer; }
+.folder-edit-btn {
+  border: none; background: transparent; color: var(--text-faint); cursor: pointer;
+  width: 20px; height: 20px; border-radius: 4px; font-size: 11px; flex-shrink: 0;
+  display: none; align-items: center; justify-content: center;
+}
+.folder-row:hover .folder-edit-btn { display: flex; }
+.folder-edit-btn:hover { background: var(--bg-hover); color: var(--text); }
+
+@media (max-width: 760px) {
+  .note-page-sidebar-toggle { display: inline-flex; }
+  .note-page-body { flex-direction: column; }
+  .note-page-sidebar {
+    width: 100%; border-right: none; border-bottom: 1px solid var(--border);
+    display: none; max-height: 45vh;
+  }
+  .note-page-sidebar.open { display: block; }
+  .note-page-title-input { font-size: 17px; }
+  .note-page-editor-mount, .note-page-toolbar, .note-page-attachments { padding-left: 16px; padding-right: 16px; }
+}
