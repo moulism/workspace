@@ -675,15 +675,26 @@ table.fin-table .action { cursor: pointer; color: var(--accent); font-size: 12px
      text). Forcing its own compositing layer avoids that. */
   transform: translateZ(0);
 }
+/* flex-shrink:0 on all three is load-bearing: .note-page-main is a column
+   flex container, and with the default flex-shrink:1 the browser will
+   compress a tall note's editor box shorter than its actual text content
+   whenever everything doesn't fit the visible area. The box shrinks, but
+   the contenteditable text inside doesn't clip (overflow stays visible),
+   so the tail of a long note ends up rendered *underneath* the toolbar and
+   attachments list below it instead of appearing after it. Disabling
+   shrink forces every section to keep its natural height, so overflow is
+   handled the right way: by .note-page-main scrolling. */
 .note-page-editor-mount {
-  flex: 1; min-height: 320px; padding: 24px clamp(20px, 6vw, 72px) 28px; max-width: 900px; width: 100%; margin: 0 auto;
+  flex: 1 0 auto; min-height: 320px; padding: 24px clamp(20px, 6vw, 72px) 28px; max-width: 900px; width: 100%; margin: 0 auto;
 }
 .note-page-toolbar {
   display: flex; gap: 8px; flex-wrap: wrap; padding: 20px clamp(20px, 6vw, 72px) 18px;
   max-width: 900px; width: 100%; margin: 0 auto; border-top: 1px solid var(--border);
+  flex-shrink: 0;
 }
 .note-page-attachments {
   padding: 18px clamp(20px, 6vw, 72px) 0; max-width: 900px; width: 100%; margin: 0 auto;
+  flex-shrink: 0;
 }
 body.note-page-open { overflow: hidden; }
 
