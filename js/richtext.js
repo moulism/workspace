@@ -99,16 +99,43 @@ export function createEditor(container, initialHtml = "") {
   colorWrap.appendChild(colorPopover);
   toolbar.appendChild(colorWrap);
 
+  const HIGHLIGHT_COLORS = ["#fff59d", "#b9f6ca", "#a7d8ff", "#ffcdd2"];
+
+  const highlightWrap = document.createElement("div");
+  highlightWrap.className = "editor-color-wrap";
   const highlightBtn = document.createElement("button");
   highlightBtn.type = "button";
-  highlightBtn.textContent = "🖍";
   highlightBtn.title = "Zvýraznit";
+  highlightBtn.textContent = "🖍";
   highlightBtn.addEventListener("mousedown", (e) => e.preventDefault());
-  highlightBtn.addEventListener("click", () => {
-    document.execCommand("hiliteColor", false, "#fff59d");
+  const highlightPopover = document.createElement("div");
+  highlightPopover.className = "editor-color-popover hidden";
+  highlightPopover.innerHTML = `
+    <button type="button" class="color-swatch color-swatch-reset" data-unhighlight title="Odebrat zvýraznění">⊘</button>
+    ${HIGHLIGHT_COLORS.map((c) => `<button type="button" class="color-swatch" data-highlight="${c}" style="background:${c};"></button>`).join("")}
+  `;
+  highlightBtn.addEventListener("click", () => highlightPopover.classList.toggle("hidden"));
+  highlightPopover.querySelectorAll("button").forEach((b) => b.addEventListener("mousedown", (e) => e.preventDefault()));
+  highlightPopover.querySelectorAll("[data-highlight]").forEach((b) =>
+    b.addEventListener("click", () => {
+      document.execCommand("hiliteColor", false, b.dataset.highlight);
+      highlightPopover.classList.add("hidden");
+      content.focus();
+    })
+  );
+  highlightPopover.querySelector("[data-unhighlight]").addEventListener("click", () => {
+    // "transparent" is what actually clears a hiliteColor in every evergreen
+    // browser; execCommand has no dedicated "remove highlight" command.
+    document.execCommand("hiliteColor", false, "transparent");
     content.focus();
+    highlightPopover.classList.add("hidden");
   });
-  toolbar.appendChild(highlightBtn);
+  document.addEventListener("click", (e) => {
+    if (!highlightWrap.contains(e.target)) highlightPopover.classList.add("hidden");
+  });
+  highlightWrap.appendChild(highlightBtn);
+  highlightWrap.appendChild(highlightPopover);
+  toolbar.appendChild(highlightWrap);
 
   const content = document.createElement("div");
   content.className = "editor-content";

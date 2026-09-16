@@ -442,14 +442,8 @@ export async function openNoteEditor(container, noteId, opts = {}) {
       mainEl.scrollTop -= mainRect.top + margin - rect.top;
     }
   }
-  function selectionHandler() {
-    if (document.activeElement && document.activeElement.closest?.(".note-page-editor-mount")) scrollCaretIntoView();
-  }
-  document.addEventListener("selectionchange", selectionHandler);
-
   function close() {
     document.removeEventListener("keydown", escHandler);
-    document.removeEventListener("selectionchange", selectionHandler);
     if (window.visualViewport) {
       window.visualViewport.removeEventListener("resize", syncViewportSize);
       window.visualViewport.removeEventListener("scroll", syncViewportSize);
