@@ -369,7 +369,13 @@ export async function openNoteEditor(container, noteId, opts = {}) {
         <div class="folder-tree" id="note-folder-tree"></div>
         <button class="btn btn-ghost btn-sm" id="note-add-folder" style="margin-top:10px;width:100%;">+ ${note.area === "school" ? "Předmět" : "Složka"}</button>
         <hr style="margin:18px 0;border:none;border-top:1px solid var(--border);" />
-        <div class="field"><label>Termín (nepovinné)</label><input type="date" id="note-due" value="${note.due_date || ""}" /></div>
+        <div class="field">
+          <label>Termín (nepovinné)</label>
+          <div class="row" style="gap:6px;">
+            <input type="date" id="note-due" value="${note.due_date || ""}" />
+            <button type="button" class="btn btn-icon btn-ghost" id="note-due-clear" title="Odebrat termín" style="flex:0 0 auto;">✕</button>
+          </div>
+        </div>
         <div class="field"><label>Štítky</label><input type="text" id="note-tags" placeholder="štítek1, štítek2" value="${escapeHtml((note.tags || []).join(", "))}" /></div>
       </div>
       <div class="note-page-main">
@@ -407,6 +413,9 @@ export async function openNoteEditor(container, noteId, opts = {}) {
   overlay.querySelector("#note-page-back").addEventListener("click", close);
   overlay.querySelector("#note-page-sidebar-toggle").addEventListener("click", () => {
     overlay.querySelector("#note-page-sidebar").classList.toggle("open");
+  });
+  overlay.querySelector("#note-due-clear").addEventListener("click", () => {
+    overlay.querySelector("#note-due").value = "";
   });
 
   const editor = createEditor(overlay.querySelector("#note-editor-mount"), note.content);
