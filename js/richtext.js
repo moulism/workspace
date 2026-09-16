@@ -1,3 +1,5 @@
+import { openImageZoomViewer } from "./ui.js";
+
 const TOOLS = [
   { cmd: "bold", label: "<b>B</b>", title: "Tučně (Ctrl+B)" },
   { cmd: "italic", label: "<i>I</i>", title: "Kurzíva (Ctrl+I)" },
@@ -203,6 +205,7 @@ function setupImageResize(mount, content) {
       <button type="button" data-pct="0.5">M</button>
       <button type="button" data-pct="0.75">L</button>
       <button type="button" data-pct="1">100%</button>
+      <button type="button" data-zoom="1" title="Přiblížit obrázek">🔍</button>
     `;
     mount.appendChild(sizeBar);
     sizeBar.querySelectorAll("[data-pct]").forEach((b) =>
@@ -211,6 +214,10 @@ function setupImageResize(mount, content) {
     sizeBar.querySelectorAll("[data-pct]").forEach((b) =>
       b.addEventListener("click", () => setWidthPct(Number(b.dataset.pct)))
     );
+    sizeBar.querySelector("[data-zoom]").addEventListener("mousedown", (e) => e.preventDefault());
+    sizeBar.querySelector("[data-zoom]").addEventListener("click", () => {
+      if (img) openImageZoomViewer(img.src, img.alt || "");
+    });
 
     place();
 
@@ -253,6 +260,12 @@ function setupImageResize(mount, content) {
   content.addEventListener("click", (e) => {
     if (e.target.tagName === "IMG") select(e.target);
     else cleanup();
+  });
+  content.addEventListener("dblclick", (e) => {
+    if (e.target.tagName === "IMG") {
+      e.preventDefault();
+      openImageZoomViewer(e.target.src, e.target.alt || "");
+    }
   });
   window.addEventListener("resize", place);
 }

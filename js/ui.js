@@ -81,6 +81,139 @@ export function confirmDialog(message) {
   });
 }
 
+export function openImageZoomViewer(src, alt = "") {
+  const overlay = document.createElement("div");
+  overlay.className = "image-zoom-overlay";
+  overlay.innerHTML = `
+    <button type="button" class="image-zoom-close" aria-label="Zavřít">✕</button>
+    <img src="${src}" alt="${escapeHtml(alt)}" draggable="false" />
+  `;
+  document.body.appendChild(overlay);
+  const imgEl = overlay.querySelector("img");
+
+  let scale = 1, tx = 0, ty = 0;
+  const pointers = new Map();
+  let pinchStartDist = 0, pinchStartScale = 1;
+  let panStart = null;
+  let lastTap = 0;
+
+  function apply() {
+    imgEl.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+  }
+
+  function resetZoom() {
+    scale = 1; tx = 0; ty = 0;
+    apply();
+  }
+
+  function dist(pts) {
+    const [a, b] = pts;
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  function onKey(e) {
+    if (e.key === "Escape") close();
+  }
+
+  function close() {
+    document.removeEventListener("keydown", onKey);
+    overlay.remove();
+  }
+  document.addEventListener("keydown", onKey);
+  overlay.querySelector(".image-zoom-close").addEventListener("click", close);
+
+  function zoomAt(newScale, clientX, clientY) {
+    const rect = imgEl.getBoundingClientRect();
+    const prevScale = scale;
+    newScale = Math.min(4, Math.max(1, newScale));
+    const ratio = newScale / prevScale;
+    const originX = clientX - (rect.left + rect.width / 2);
+    const originY = clientY - (rect.top + rect.height / 2);
+    tx = tx + originX * (1 - ratio);
+    ty = ty + originY * (1 - ratio);
+    scale = newScale;
+    if (scale <= 1.01) {
+      tx = 0;
+      ty = 0;
+      scale = 1;
+    }
+    apply();
+  }
+
+  function onPointerDown(e) {
+    overlay.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) {
+      const pts = [...pointers.values()];
+      pinchStartDist = dist(pts);
+      pinchStartScale = scale;
+      panStart = null;
+    } else if (pointers.size === 1) {
+      if (scale > 1) {
+        panStart = { x: e.clientX, y: e.clientY, tx, ty };
+      }
+      if (e.target === imgEl) {
+        const now = Date.now();
+        if (now - lastTap < 320) {
+          if (scale > 1) resetZoom();
+          else zoomAt(2.5, e.clientX, e.clientY);
+          lastTap = 0;
+        } else {
+          lastTap = now;
+        }
+      }
+    }
+  }
+
+  function onPointerMove(e) {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) {
+      e.preventDefault();
+      const pts = [...pointers.values()];
+      const d = dist(pts);
+      if (pinchStartDist > 0) {
+        const newScale = Math.min(4, Math.max(1, pinchStartScale * (d / pinchStartDist)));
+        const mid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+        zoomAt(newScale, mid.x, mid.y);
+      }
+    } else if (pointers.size === 1 && panStart) {
+      e.preventDefault();
+      const p = [...pointers.values()][0];
+      tx = panStart.tx + (p.x - panStart.x);
+      ty = panStart.ty + (p.y - panStart.y);
+      apply();
+    }
+  }
+
+  function onPointerUp(e) {
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinchStartDist = 0;
+    if (pointers.size === 0) panStart = null;
+  }
+
+  overlay.addEventListener("pointerdown", onPointerDown);
+  overlay.addEventListener("pointermove", onPointerMove, { passive: false });
+  overlay.addEventListener("pointerup", onPointerUp);
+  overlay.addEventListener("pointercancel", onPointerUp);
+
+  overlay.addEventListener(
+    "wheel",
+    (e) => {
+      e.preventDefault();
+      const delta = -e.deltaY * 0.0015;
+      zoomAt(scale * (1 + delta), e.clientX, e.clientY);
+    },
+    { passive: false }
+  );
+
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) close();
+  });
+
+  return { close };
+}
+
 export function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {

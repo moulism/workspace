@@ -1,7 +1,7 @@
 import { Notes, Folders, FlashcardSets, Quizzes, Attachments } from "../db.js";
 import { supabase } from "../supabaseClient.js";
 import { AI_FUNCTION_NAME } from "../config.js";
-import { escapeHtml, openModal, confirmDialog, fmtDate, fmtDateTime, todayIso } from "../ui.js";
+import { escapeHtml, openModal, confirmDialog, fmtDate, fmtDateTime, todayIso, openImageZoomViewer } from "../ui.js";
 import { toast, toastError } from "../toast.js";
 import { createEditor } from "../richtext.js";
 import { exportNoteToPdf, exportNoteToHtmlFile } from "../pdfExport.js";
@@ -605,8 +605,13 @@ async function openAttachmentPreview(f) {
   const mount = modalEl.querySelector("#att-preview-mount");
   try {
     const url = await Attachments.getDownloadUrl(f.file_path);
-    if (kind === "image") mount.innerHTML = `<img src="${url}" alt="${escapeHtml(f.file_name)}" />`;
-    else if (kind === "pdf") mount.innerHTML = `<iframe src="${url}"></iframe>`;
+    if (kind === "image") {
+      mount.innerHTML = `<img src="${url}" alt="${escapeHtml(f.file_name)}" style="cursor:zoom-in;" />`;
+      mount.querySelector("img").addEventListener("click", (ev) => {
+        openImageZoomViewer(url, f.file_name);
+        ev.stopPropagation();
+      });
+    } else if (kind === "pdf") mount.innerHTML = `<iframe src="${url}"></iframe>`;
     else if (kind === "video") mount.innerHTML = `<video src="${url}" controls></video>`;
     else if (kind === "audio") mount.innerHTML = `<audio src="${url}" controls></audio>`;
     else if (kind === "text") {
