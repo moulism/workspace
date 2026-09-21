@@ -18,6 +18,7 @@ export async function render(container) {
         <button class="chip ${filters.showDone ? "active" : ""}" id="toggle-done">Zobrazit hotové</button>
       </div>
     </div>
+    <div class="dash-kpi-row" id="todos-kpis" style="margin-bottom:14px;"></div>
     <form id="add-todo-form" class="card" style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
       <input type="text" id="new-todo-title" placeholder="Nový úkol…" style="flex:2;min-width:180px;" />
       <select id="new-todo-area" style="flex:1;min-width:110px;">${Object.entries(AREAS).map(([id, l]) => `<option value="${id}">${l}</option>`).join("")}</select>
@@ -62,27 +63,44 @@ export async function render(container) {
 
 async function loadList(container) {
   const box = container.querySelector("#todos-list");
+  const kpis = container.querySelector("#todos-kpis");
   try {
     const opts = {};
     if (filters.area !== "all") opts.area = filters.area;
     if (!filters.showDone) opts.done = false;
     const todos = await Todos.list(opts);
+
+    const openTodos = await Todos.list({ done: false });
+    const today = todayIso();
+    const overdue = openTodos.filter((t) => t.due_date && t.due_date < today).length;
+    const dueToday = openTodos.filter((t) => t.due_date === today).length;
+    const highPriority = openTodos.filter((t) => t.priority === "high").length;
+    if (kpis) {
+      kpis.innerHTML = `
+        <div class="dash-kpi"><div class="n">${openTodos.length}</div><div class="l">Otevřené</div></div>
+        <div class="dash-kpi"><div class="n">${overdue}</div><div class="l">Po termínu</div></div>
+        <div class="dash-kpi"><div class="n">${dueToday}</div><div class="l">Dnes</div></div>
+        <div class="dash-kpi"><div class="n">${highPriority}</div><div class="l">Vysoká priorita</div></div>
+      `;
+    }
+
     if (!todos.length) {
       box.innerHTML = `<div class="empty-state"><div class="big">✅</div>Žádné úkoly.</div>`;
       return;
     }
     box.innerHTML = todos
-      .map(
-        (t) => `<label class="list-item ${t.done ? "done" : ""}">
+      .map((t) => {
+        const overdueItem = !t.done && t.due_date && t.due_date < today;
+        return `<label class="list-item ${t.done ? "done" : ""}">
           <input type="checkbox" data-id="${t.id}" class="check" ${t.done ? "checked" : ""} />
           <div class="grow" data-open="${t.id}" style="cursor:pointer;">
             <div class="title">${escapeHtml(t.title)}${t.description ? ` <span class="faint">📝</span>` : ""}</div>
-            <div class="faint">${AREAS[t.area] || ""} ${t.due_date ? "· " + fmtDate(t.due_date) : ""}</div>
+            <div class="faint">${AREAS[t.area] || ""} ${t.due_date ? "· " + fmtDate(t.due_date) : ""} ${overdueItem ? `<span class="pill pill-danger">po termínu</span>` : ""}</div>
           </div>
           <span class="pill">${PRIORITIES[t.priority] || t.priority}</span>
           <button type="button" class="btn btn-icon btn-ghost btn-sm" data-del="${t.id}">✕</button>
-        </label>`
-      )
+        </label>`;
+      })
       .join("");
     box.querySelectorAll(".check").forEach((cb) =>
       cb.addEventListener("change", async (e) => {

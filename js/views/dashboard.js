@@ -74,7 +74,6 @@ export async function render(container) {
       <div class="card" id="gmail-card" style="grid-column: span 8;"></div>
 
       <a class="card hub-tile-simple" href="#/notes"><span class="hub-tile-ic">📝</span>Poznámky</a>
-      <a class="card hub-tile-simple" href="#/diary"><span class="hub-tile-ic">📔</span>Deník</a>
       <a class="card hub-tile-simple" href="#/gym"><span class="hub-tile-ic">🏋️</span>Gym</a>
       <a class="card hub-tile-simple" href="#/meals"><span class="hub-tile-ic">🍽️</span>Jídelníček</a>
       <a class="card hub-tile-simple" href="#/recipes"><span class="hub-tile-ic">📖</span>Recepty</a>

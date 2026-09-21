@@ -3,43 +3,98 @@ import { escapeHtml, openModal, confirmDialog, fmtDate } from "../ui.js";
 import { toast, toastError } from "../toast.js";
 
 const STATUS_LABEL = { active: "Aktivní", completed: "Splněný", paused: "Pozastavený" };
+const RING_COLORS = { active: "#22d3ee", completed: "#2f9e5b", paused: "#c98a1f" };
+
+let filters = { status: "all" };
+let charts = [];
 
 export async function render(container) {
   container.innerHTML = `
     <div class="section-header">
-      <h2>Cíle</h2>
+      <div class="toolbar filter-bar">
+        <button class="chip ${filters.status === "all" ? "active" : ""}" data-status="all">Vše</button>
+        ${Object.entries(STATUS_LABEL)
+          .map(([id, l]) => `<button class="chip ${filters.status === id ? "active" : ""}" data-status="${id}">${l}</button>`)
+          .join("")}
+      </div>
       <button class="btn btn-primary" id="new-goal-btn">+ Nový cíl</button>
     </div>
+    <div class="dash-kpi-row" id="goals-kpis" style="margin-bottom:18px;"></div>
     <div class="grid grid-3" id="goals-grid"></div>
   `;
   container.querySelector("#new-goal-btn").addEventListener("click", () => openGoalModal(container));
+  container.querySelectorAll("[data-status]").forEach((b) =>
+    b.addEventListener("click", () => {
+      filters.status = b.dataset.status;
+      render(container);
+    })
+  );
   await load(container);
 }
 
 async function load(container) {
   const grid = container.querySelector("#goals-grid");
+  const kpis = container.querySelector("#goals-kpis");
+  charts.forEach((c) => c.destroy());
+  charts = [];
   try {
-    const goals = await Goals.list();
+    const all = await Goals.list();
+    const active = all.filter((g) => g.status === "active");
+    const completed = all.filter((g) => g.status === "completed");
+    const avg = active.length ? Math.round(active.reduce((s, g) => s + (g.progress || 0), 0) / active.length) : 0;
+    kpis.innerHTML = `
+      <div class="dash-kpi"><div class="n">${active.length}</div><div class="l">Aktivní</div></div>
+      <div class="dash-kpi"><div class="n">${completed.length}</div><div class="l">Splněno</div></div>
+      <div class="dash-kpi"><div class="n">${all.length}</div><div class="l">Celkem cílů</div></div>
+      <div class="dash-kpi"><div class="n">${avg}%</div><div class="l">Průměrný postup</div></div>
+    `;
+
+    const goals = filters.status === "all" ? all : all.filter((g) => g.status === filters.status);
     if (!goals.length) {
       grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="big">🎯</div>Zatím žádné cíle.</div>`;
       return;
     }
     grid.innerHTML = goals
       .map(
-        (g) => `<div class="card">
-          <div style="display:flex;justify-content:space-between;gap:8px;">
-            <b class="truncate">${escapeHtml(g.title)}</b>
-            <span class="pill">${STATUS_LABEL[g.status]}</span>
+        (g, i) => `<div class="card">
+          <div style="display:flex;gap:14px;align-items:center;">
+            <div class="dash-goal-canvas-wrap" style="flex-shrink:0;">
+              <canvas id="goal-ring-${i}"></canvas>
+              <div class="dash-goal-pct">${g.progress}%</div>
+            </div>
+            <div class="grow" style="min-width:0;">
+              <b class="truncate" style="display:block;">${escapeHtml(g.title)}</b>
+              <div class="faint" style="margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                ${g.category ? escapeHtml(g.category) : ""}
+                <span class="pill">${STATUS_LABEL[g.status]}</span>
+              </div>
+            </div>
           </div>
-          ${g.description ? `<div class="faint" style="margin-top:4px;">${escapeHtml(g.description)}</div>` : ""}
-          <div class="progress-bar" style="margin-top:10px;"><div style="width:${g.progress}%"></div></div>
-          <div class="faint" style="margin-top:4px;">${g.progress}% ${g.target_date ? "· do " + fmtDate(g.target_date) : ""}</div>
+          ${g.description ? `<div class="faint" style="margin-top:10px;">${escapeHtml(g.description)}</div>` : ""}
+          ${g.target_date ? `<div class="faint" style="margin-top:8px;">Termín: ${fmtDate(g.target_date)}</div>` : ""}
           <div class="toolbar" style="margin-top:10px;">
             <button class="btn btn-sm" data-edit="${g.id}">Upravit</button>
           </div>
         </div>`
       )
       .join("");
+
+    if (window.Chart) {
+      goals.forEach((g, i) => {
+        const ctx = container.querySelector(`#goal-ring-${i}`);
+        if (!ctx) return;
+        const pct = Math.max(0, Math.min(100, g.progress || 0));
+        const color = RING_COLORS[g.status] || "#22d3ee";
+        charts.push(
+          new Chart(ctx, {
+            type: "doughnut",
+            data: { datasets: [{ data: [pct, 100 - pct], backgroundColor: [color, "rgba(147,163,181,.18)"], borderWidth: 0 }] },
+            options: { cutout: "72%", plugins: { legend: { display: false }, tooltip: { enabled: false } }, animation: { duration: 400 } },
+          })
+        );
+      });
+    }
+
     grid.querySelectorAll("[data-edit]").forEach((b) => {
       const g = goals.find((x) => x.id === b.dataset.edit);
       b.addEventListener("click", () => openGoalModal(container, g));

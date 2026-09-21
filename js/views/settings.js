@@ -11,15 +11,18 @@ export async function render(container) {
   const theme = getStoredTheme();
 
   container.innerHTML = `
+    <div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      <div style="width:56px;height:56px;border-radius:50%;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:22px;background:var(--bg-hover);flex-shrink:0;">🦇</div>
+      <div class="grow" style="min-width:200px;">
+        <div style="font-family:var(--font-display);font-size:18px;letter-spacing:.03em;">MASTER M</div>
+        <div class="faint">${user?.email || ""}</div>
+      </div>
+      <button class="btn btn-danger btn-sm" id="signout">Odhlásit se</button>
+    </div>
+
     <div class="grid grid-2">
       <div class="card">
-        <h3 style="margin-top:0;">Účet</h3>
-        <div class="muted">${user?.email || ""}</div>
-        <button class="btn btn-danger btn-sm" id="signout" style="margin-top:12px;">Odhlásit se</button>
-      </div>
-
-      <div class="card">
-        <h3 style="margin-top:0;">Heslo</h3>
+        <h3 style="margin-top:0;">🔑 Heslo</h3>
         <p class="faint" style="margin-bottom:10px;">
           Nastav si heslo, ať se dá appka na ploše otevřít a přihlásit přímo v ní — přihlašovací odkaz emailem
           se totiž vždy otevře v prohlížeči, ne v nainstalované appce. Z bezpečnostních důvodů nejde zobrazit
@@ -41,7 +44,7 @@ export async function render(container) {
       </div>
 
       <div class="card">
-        <h3 style="margin-top:0;">Vzhled</h3>
+        <h3 style="margin-top:0;">🎨 Vzhled</h3>
         <div class="filter-bar">
           <button class="chip ${theme === "system" ? "active" : ""}" data-theme="system">Systémový</button>
           <button class="chip ${theme === "light" ? "active" : ""}" data-theme="light">Světlý</button>
@@ -50,9 +53,9 @@ export async function render(container) {
       </div>
 
       <div class="card">
-        <h3 style="margin-top:0;">Google (Kalendář + Gmail)</h3>
+        <h3 style="margin-top:0;">📅 Google (Kalendář + Gmail)</h3>
         <div class="muted" style="margin-bottom:10px;">
-          Stav: ${hasGoogle() ? "✅ Připojeno pro tuto session" : "⚠️ Nepřipojeno / vypršelo"}
+          Stav: <span class="pill ${hasGoogle() ? "" : "pill-warning"}">${hasGoogle() ? "Připojeno pro tuto session" : "Nepřipojeno / vypršelo"}</span>
         </div>
         <button class="btn btn-primary btn-sm" id="reconnect-google">Připojit / obnovit přístup</button>
         <p class="faint" style="margin-top:10px;">
@@ -62,7 +65,7 @@ export async function render(container) {
       </div>
 
       <div class="card">
-        <h3 style="margin-top:0;">AI generování (flashcards / testy)</h3>
+        <h3 style="margin-top:0;">🤖 AI generování (flashcards / testy)</h3>
         <p class="faint">
           Generování běží přes Supabase Edge Function <code>ai-generate</code>, která používá tvůj vlastní
           Anthropic API klíč uložený jako server-side secret (nikdy neopouští Supabase, není v appce viditelný).

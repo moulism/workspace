@@ -12,7 +12,6 @@ const ROUTES = {
   todos: { title: "Úkoly", load: () => import("./views/todos.js") },
   goals: { title: "Cíle", load: () => import("./views/goals.js") },
   journal: { title: "Successful Journal", load: () => import("./views/journal.js") },
-  diary: { title: "Deník", load: () => import("./views/diary.js") },
   gym: { title: "Gym", load: () => import("./views/gym.js") },
   meals: { title: "Jídelníček", load: () => import("./views/meals.js") },
   recipes: { title: "Recepty", load: () => import("./views/recipes.js") },

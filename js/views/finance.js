@@ -62,7 +62,7 @@ export async function render(container) {
     <div class="fin-kpis">
       <div class="card fin-kpi"><h4>Filtr — celkem</h4><p id="fin-kpi-total">0 Kč</p></div>
       <div class="card fin-kpi"><h4>Rok</h4><p id="fin-kpi-year">–</p></div>
-      <div class="card fin-kpi"><h4>Měsíc</h4><p id="fin-kpi-month">–</p></div>
+      <div class="card fin-kpi"><h4>Měsíc</h4><p id="fin-kpi-month">–</p><div class="faint" id="fin-kpi-trend"></div></div>
       <div class="card fin-kpi"><h4>Týden</h4><p id="fin-kpi-week">–</p></div>
     </div>
 
@@ -211,10 +211,36 @@ async function load(container) {
     container.querySelector("#fin-kpi-week").textContent =
       filters.week === "all" ? "celý měsíc" : `${filtered.reduce((s, t) => s + Number(t.amount), 0).toLocaleString("cs-CZ")} Kč`;
 
+    await renderMonthTrend(container, monthNum, monthTotal);
+
     renderCharts(container, all, filtered);
     renderTable(container, filtered);
   } catch (e) {
     toastError(e);
+  }
+}
+
+async function renderMonthTrend(container, monthNum, monthTotal) {
+  const el = container.querySelector("#fin-kpi-trend");
+  if (!el) return;
+  try {
+    let prevMonth = monthNum - 1;
+    let prevYear = filters.year;
+    if (prevMonth < 1) {
+      prevMonth = 12;
+      prevYear -= 1;
+    }
+    const prevData = await FinanceTransactions.list({ from: `${prevYear}-${String(prevMonth).padStart(2, "0")}-01`, to: `${prevYear}-${String(prevMonth).padStart(2, "0")}-31` });
+    const prevTotal = prevData.reduce((s, t) => s + Number(t.amount), 0);
+    if (!prevTotal) {
+      el.textContent = "";
+      return;
+    }
+    const delta = Math.round(((monthTotal - prevTotal) / prevTotal) * 100);
+    const arrow = delta > 0 ? "▲" : delta < 0 ? "▼" : "—";
+    el.innerHTML = `${arrow} ${Math.abs(delta)}% oproti minulému měsíci`;
+  } catch {
+    el.textContent = "";
   }
 }
 

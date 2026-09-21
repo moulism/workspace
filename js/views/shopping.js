@@ -28,6 +28,13 @@ export async function render(container) {
       </div>
       <button class="btn btn-sm btn-danger" id="clear-checked">Vymazat odškrtnuté</button>
     </div>
+    <div class="card" id="shopping-progress-card" style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <b>Postup nákupu</b>
+        <span class="pill" id="shopping-progress-pill">0 / 0</span>
+      </div>
+      <div class="progress-bar"><div id="shopping-progress-fill" style="width:0%;"></div></div>
+    </div>
     <form id="add-item-form" class="card" style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
       <input type="text" id="item-name" placeholder="Co koupit…" style="flex:2;min-width:160px;" required />
       <input type="text" id="item-qty" placeholder="Množství (volitelné)" style="flex:1;min-width:120px;" />
@@ -123,6 +130,14 @@ async function load(container) {
   box.innerHTML = `<div class="center" style="padding:30px;"><div class="spinner"></div></div>`;
   try {
     const items = await ShoppingItems.list(currentList);
+
+    const checkedCount = items.filter((i) => i.checked).length;
+    const pct = items.length ? Math.round((checkedCount / items.length) * 100) : 0;
+    const pill = container.querySelector("#shopping-progress-pill");
+    const fill = container.querySelector("#shopping-progress-fill");
+    if (pill) pill.textContent = `${checkedCount} / ${items.length}`;
+    if (fill) fill.style.width = `${pct}%`;
+
     if (!items.length) {
       box.innerHTML = `<div class="empty-state"><div class="big">🛒</div>Seznam je prázdný. Přidej první položku výše.</div>`;
       return;
@@ -147,9 +162,12 @@ async function load(container) {
     const groupNames = Object.keys(groups).sort((a, b) => (a === "Ostatní" ? 1 : b === "Ostatní" ? -1 : a.localeCompare(b, "cs")));
 
     box.innerHTML = groupNames
-      .map(
-        (g) => `
-      <div class="faint" style="margin:14px 0 6px;text-transform:uppercase;letter-spacing:.04em;">${escapeHtml(g)} · ${groups[g].length}</div>
+      .map((g) => {
+        const groupChecked = groups[g].filter((i) => i.checked).length;
+        return `
+      <div class="faint" style="margin:14px 0 6px;text-transform:uppercase;letter-spacing:.04em;display:flex;justify-content:space-between;">
+        <span>${escapeHtml(g)}</span><span>${groupChecked} / ${groups[g].length}</span>
+      </div>
       <div class="list">
         ${groups[g]
           .map(
@@ -166,8 +184,8 @@ async function load(container) {
             </div>`
           )
           .join("")}
-      </div>`
-      )
+      </div>`;
+      })
       .join("");
 
     box.querySelectorAll(".check").forEach((cb) =>

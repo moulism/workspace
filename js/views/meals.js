@@ -14,8 +14,8 @@ export async function render(container) {
         <input type="date" id="meal-date" value="${selectedDate}" />
         <button class="btn btn-icon" id="next-day">→</button>
       </div>
-      <div id="daily-totals" class="faint"></div>
     </div>
+    <div class="dash-kpi-row" id="daily-totals" style="margin-bottom:14px;"></div>
     <form id="add-meal-form" class="card" style="margin-bottom:14px;">
       <div class="row">
         <div class="field"><label>Typ</label>
@@ -107,8 +107,12 @@ async function load(container) {
       },
       { cal: 0, protein: 0, carbs: 0, fat: 0 }
     );
-    container.querySelector("#daily-totals").textContent =
-      `${totals.cal} kcal · B ${totals.protein}g · S ${totals.carbs}g · T ${totals.fat}g`;
+    container.querySelector("#daily-totals").innerHTML = `
+      <div class="dash-kpi"><div class="n">${totals.cal}</div><div class="l">Kcal</div></div>
+      <div class="dash-kpi"><div class="n">${totals.protein}g</div><div class="l">Bílkoviny</div></div>
+      <div class="dash-kpi"><div class="n">${totals.carbs}g</div><div class="l">Sacharidy</div></div>
+      <div class="dash-kpi"><div class="n">${totals.fat}g</div><div class="l">Tuky</div></div>
+    `;
 
     if (!meals.length) {
       list.innerHTML = `<div class="empty-state"><div class="big">🍽️</div>Pro tento den zatím nic.</div>`;

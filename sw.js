@@ -1,4 +1,4 @@
-const CACHE = "workspace-shell-v30";
+const CACHE = "workspace-shell-v31";
 const SHELL = [
   "./",
   "./index.html",
@@ -22,7 +22,6 @@ const SHELL = [
   "./js/views/calendar.js",
   "./js/views/todos.js",
   "./js/views/goals.js",
-  "./js/views/diary.js",
   "./js/views/gym.js",
   "./js/views/meals.js",
   "./js/views/recipes.js",

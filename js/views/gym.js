@@ -8,7 +8,7 @@ export async function render(container) {
       <h2>Gym</h2>
       <button class="btn btn-primary" id="new-session-btn">+ Nový trénink</button>
     </div>
-    <div class="grid grid-3" style="margin-bottom:16px;" id="gym-stats"></div>
+    <div class="dash-kpi-row" style="margin-bottom:16px;" id="gym-stats"></div>
     <div class="list" id="gym-list"></div>
   `;
   container.querySelector("#new-session-btn").addEventListener("click", () => openSessionModal(container));
@@ -27,10 +27,12 @@ async function load(container) {
     monthAgo.setDate(now.getDate() - 30);
     const thisWeek = sessions.filter((s) => new Date(s.session_date) >= weekAgo).length;
     const thisMonth = sessions.filter((s) => new Date(s.session_date) >= monthAgo).length;
+    const done = sessions.filter((s) => s.done).length;
     stats.innerHTML = `
-      <div class="card"><div class="faint">Tento týden</div><div style="font-size:24px;font-weight:700;">${thisWeek}</div></div>
-      <div class="card"><div class="faint">Tento měsíc</div><div style="font-size:24px;font-weight:700;">${thisMonth}</div></div>
-      <div class="card"><div class="faint">Celkem zaznamenáno</div><div style="font-size:24px;font-weight:700;">${sessions.length}</div></div>
+      <div class="dash-kpi"><div class="n">${thisWeek}</div><div class="l">Tento týden</div></div>
+      <div class="dash-kpi"><div class="n">${thisMonth}</div><div class="l">Tento měsíc</div></div>
+      <div class="dash-kpi"><div class="n">${sessions.length}</div><div class="l">Celkem</div></div>
+      <div class="dash-kpi"><div class="n">${done}</div><div class="l">Dokončeno</div></div>
     `;
     if (!sessions.length) {
       list.innerHTML = `<div class="empty-state"><div class="big">🏋️</div>Zatím žádné tréninky.</div>`;
