@@ -1,4 +1,4 @@
-import { JournalCycles, JournalHabits, JournalEntries, JournalHabitLogs, JournalWeeklyReviews, Events, Todos, FinanceTransactions, Goals } from "../db.js";
+import { JournalCycles, JournalHabits, JournalEntries, JournalHabitLogs, JournalWeeklyReviews, JournalTimeBlocks, Events, Todos, FinanceTransactions, Goals } from "../db.js";
 import { escapeHtml, openModal, confirmDialog, todayIso, fmtDate } from "../ui.js";
 import { toast, toastError } from "../toast.js";
 import { expandRecurrence } from "../recurrence.js";
@@ -114,13 +114,36 @@ const FACTS = [
   "80 % úspěchu podle Pareto principu pochází jen z 20 % úsilí — otázka je, jestli víš, které je to 20 %.",
   "První iPhone v roce 2007 neměl žádné aplikace třetích stran — App Store přišel až o rok později.",
   "Lidský mozek spotřebuje asi 20 % veškeré energie těla, přestože tvoří jen 2 % tělesné hmotnosti.",
+  "Lidé, kteří si píší úkoly rukou do papírového plánovače, si je podle výzkumů pamatují lépe než ti, co je jen naklikají do telefonu.",
+  "Nejproduktivnější lidé nemají víc času než ostatní — mají jasnější priority a míň rozptýlení, ne víc hodin v týdnu.",
+  "Ranní světlo (10–15 minut venku hned po probuzení) pomáhá nastavit vnitřní hodiny a zlepšuje spánek i energii přes den.",
+  "Ikea, Coca-Cola i Rolex vznikly z původně úplně jiného nápadu, než se kterým firmy nakonec proslavily.",
+  "Elon Musk i Jeff Bezos si na začátku svého podnikání dlouho nevypláceli žádnou (nebo minimální) mzdu, dokud firma neměla stabilní příjem.",
+  "Lidé podle výzkumů dodržují sliby dané sami sobě mnohem hůř než sliby dané druhým — proto pomáhá mít „accountability partnera" nebo si závazek napsat veřejně.",
+  "Krátký 20minutový spánek (power nap) přes den dokáže zlepšit pozornost a náladu, aniž by narušil noční spánek.",
+  "Nejbohatší 1 % lidí na světě se z velké části neproslavilo jedním nápadem, ale desítkami let trpělivého sudou investování a reinvestování zisků.",
+  "Psychologové označují odkládání nepříjemných úkolů jako „emoční regulaci" — neřešíš úkol, ale nepříjemný pocit z něj, a to je důvod, proč logika sama prokrastinaci neporazí.",
 ];
 
-function factOfDay(dateIso) {
+// Fakt dne teď vrací několik krátkých karet místo jedné — mini feed
+// k rychlému projetí, styl Deepstash (krátké poznatky místo dlouhých článků).
+function factsOfDay(dateIso, n = 3) {
   const d = new Date(dateIso + "T00:00:00");
   const start = new Date(d.getFullYear(), 0, 0);
   const dayOfYear = Math.floor((d - start) / 86400000);
-  return FACTS[dayOfYear % FACTS.length];
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(FACTS[(dayOfYear * n + i) % FACTS.length]);
+  return out;
+}
+
+function fmtDuration(ms) {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const sec = totalSec % 60;
+  return h > 0
+    ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`
+    : `${m}:${String(sec).padStart(2, "0")}`;
 }
 
 // Dovednost týdne — krátká praktická lekce, jedna na celý (kalendářní) týden.
@@ -217,6 +240,16 @@ let state = {
   tab: "today", // today | week | overview | history
 };
 
+// Živý interval pro odpočet běžícího time-tracker bloku — musí se rušit
+// před každým překreslením, jinak by se hromadily duplicitní tikery.
+let ttInterval = null;
+function clearTtInterval() {
+  if (ttInterval) {
+    clearInterval(ttInterval);
+    ttInterval = null;
+  }
+}
+
 export async function render(container) {
   container.innerHTML = `<div class="center" style="padding:60px;"><div class="spinner"></div></div>`;
   try {
@@ -311,6 +344,7 @@ async function renderPastCyclesList(mount, { onlyPast = false } = {}) {
 }
 
 function renderShell(container) {
+  clearTtInterval();
   const cycle = state.cycle;
   const len = cycleLength(cycle);
   const idx = Math.min(Math.max(dayIndex(cycle, state.selectedDate), 1), len);
@@ -363,6 +397,7 @@ function renderShell(container) {
 }
 
 async function renderTodayTab(container, body) {
+  clearTtInterval();
   body.innerHTML = `<div class="center" style="padding:40px;"><div class="spinner"></div></div>`;
   const cycle = state.cycle;
   const minDate = cycle.start_date;
@@ -375,12 +410,14 @@ async function renderTodayTab(container, body) {
   let todayTodos = [];
   let monthSpend = null;
   let activeGoals = [];
+  let timeBlocks = [];
   try {
     const tasks = [
       JournalEntries.getByDate(state.selectedDate),
       JournalHabitLogs.listForDate(state.selectedDate),
       JournalEntries.listByCycle(cycle.id),
       JournalHabitLogs.listForRange(cycle.start_date, cycle.end_date),
+      JournalTimeBlocks.listForDate(state.selectedDate).catch(() => []),
     ];
     if (isToday) {
       const monthStart = state.selectedDate.slice(0, 7) + "-01";
@@ -393,11 +430,12 @@ async function renderTodayTab(container, body) {
       );
     }
     const results = await Promise.all(tasks);
-    const [entry, logs, entriesForCycle, logsForCycle, eventsToday, recurringMasters, todosToday, monthTx, goalsActive] = results;
+    const [entry, logs, entriesForCycle, logsForCycle, timeBlocksToday, eventsToday, recurringMasters, todosToday, monthTx, goalsActive] = results;
     state.entry = entry;
     state.habitLogs = Object.fromEntries(logs.map((l) => [l.habit_id, true]));
     allEntries = entriesForCycle || [];
     allLogs = logsForCycle || [];
+    timeBlocks = timeBlocksToday || [];
     if (isToday) {
       const dayStart = new Date(`${state.selectedDate}T00:00:00`);
       const dayEnd = new Date(`${state.selectedDate}T23:59:59`);
@@ -429,15 +467,22 @@ async function renderTodayTab(container, body) {
   const hasCode = (cycle.standards?.length || cycle.identity_statement) ? true : false;
 
   const skill = skillOfWeek(state.selectedDate);
+  const facts = factsOfDay(state.selectedDate, 3);
+  const runningBlock = timeBlocks.find((b) => !b.ended_at) || null;
+  const finishedBlocks = timeBlocks.filter((b) => b.ended_at);
+  const finishedMs = finishedBlocks.reduce((s2, b) => s2 + (new Date(b.ended_at) - new Date(b.started_at)), 0);
+  const runningMs = runningBlock ? Date.now() - new Date(runningBlock.started_at).getTime() : 0;
 
   try {
     body.innerHTML = `
       <div class="card" style="margin-bottom:16px;background:var(--accent-soft);border-color:transparent;">
         <div style="font-style:italic;">"${escapeHtml(quoteOfDay(state.selectedDate).t)}"</div>
         ${quoteOfDay(state.selectedDate).a ? `<div class="faint" style="margin-top:4px;">— ${escapeHtml(quoteOfDay(state.selectedDate).a)}</div>` : ""}
-        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;gap:8px;">
-          <span style="flex:0 0 auto;">🧠</span>
-          <div><span class="faint">FAKT DNE</span><div>${escapeHtml(factOfDay(state.selectedDate))}</div></div>
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+          <div class="faint" style="margin-bottom:6px;">DNEŠNÍ INSPIRACE</div>
+          <div style="display:flex;flex-direction:column;gap:7px;">
+            ${facts.map((f) => `<div style="display:flex;gap:8px;"><span style="flex:0 0 auto;">🧠</span><div style="font-size:13.5px;">${escapeHtml(f)}</div></div>`).join("")}
+          </div>
         </div>
       </div>
 
@@ -448,6 +493,48 @@ async function renderTodayTab(container, body) {
           <b>${escapeHtml(skill.title)}</b>
         </div>
         <button class="btn btn-sm" id="sj-skill-open" type="button">Naučit se</button>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${runningBlock || finishedBlocks.length || isToday ? "10px" : "0"};">
+          <h3 style="margin:0;">⏱️ Time tracker</h3>
+          ${finishedMs || runningMs ? `<span class="faint" id="tt-total">${fmtDuration(finishedMs + runningMs)} dnes</span>` : ""}
+        </div>
+
+        ${
+          runningBlock
+            ? `<div style="display:flex;align-items:center;gap:10px;background:color-mix(in srgb, var(--success) 10%, var(--bg-elevated));border-radius:10px;padding:10px 12px;">
+                <div class="grow">
+                  <div style="font-size:13px;">${escapeHtml(runningBlock.label)}</div>
+                  <div id="tt-elapsed" style="font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;" data-started="${escapeHtml(runningBlock.started_at)}">${fmtDuration(runningMs)}</div>
+                </div>
+                <button class="btn btn-sm btn-danger" id="tt-stop" data-id="${runningBlock.id}" type="button">Stop</button>
+              </div>`
+            : isToday
+              ? `<div style="display:flex;gap:8px;">
+                  <input type="text" id="tt-label" placeholder="Na čem děláš? (Práce, Studium…)" value="Práce" style="flex:1;" />
+                  <button class="btn btn-primary btn-sm" id="tt-start" type="button">Start</button>
+                </div>`
+              : ""
+        }
+
+        ${
+          finishedBlocks.length
+            ? `<div style="margin-top:10px;display:flex;flex-direction:column;gap:4px;">
+                ${finishedBlocks
+                  .map(
+                    (b) => `<div class="list-item" style="padding:6px 0;">
+                      <span class="grow" style="font-size:13px;">${escapeHtml(b.label)}</span>
+                      <span class="faint" style="font-size:12.5px;">${fmtDuration(new Date(b.ended_at) - new Date(b.started_at))}</span>
+                      <button type="button" class="btn btn-icon btn-ghost btn-sm" data-remove-tt="${b.id}">✕</button>
+                    </div>`
+                  )
+                  .join("")}
+              </div>`
+            : !runningBlock && !isToday
+              ? `<div class="faint">Ten den žádný sledovaný blok.</div>`
+              : ""
+        }
       </div>
 
       ${
@@ -670,6 +757,52 @@ async function renderTodayTab(container, body) {
         <div class="modal-actions"><button class="btn btn-primary" data-close>Rozumím</button></div>
       `);
     });
+
+    const ttStartBtn = body.querySelector("#tt-start");
+    if (ttStartBtn) {
+      ttStartBtn.addEventListener("click", async () => {
+        const labelInput = body.querySelector("#tt-label");
+        const label = (labelInput?.value || "").trim() || "Práce";
+        try {
+          await JournalTimeBlocks.start(state.selectedDate, label);
+          renderTodayTab(container, body);
+        } catch (err) {
+          toastError(err);
+        }
+      });
+    }
+    const ttStopBtn = body.querySelector("#tt-stop");
+    if (ttStopBtn) {
+      ttStopBtn.addEventListener("click", async () => {
+        try {
+          await JournalTimeBlocks.stop(ttStopBtn.dataset.id);
+          renderTodayTab(container, body);
+        } catch (err) {
+          toastError(err);
+        }
+      });
+    }
+    body.querySelectorAll("[data-remove-tt]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const ok = await confirmDialog("Smazat tento časový blok?");
+        if (!ok) return;
+        try {
+          await JournalTimeBlocks.remove(btn.dataset.removeTt);
+          renderTodayTab(container, body);
+        } catch (err) {
+          toastError(err);
+        }
+      });
+    });
+    const ttElapsedEl = body.querySelector("#tt-elapsed");
+    if (ttElapsedEl) {
+      const startedAtMs = new Date(ttElapsedEl.dataset.started).getTime();
+      ttInterval = setInterval(() => {
+        ttElapsedEl.textContent = fmtDuration(Date.now() - startedAtMs);
+        const totalEl = body.querySelector("#tt-total");
+        if (totalEl) totalEl.textContent = `${fmtDuration(finishedMs + (Date.now() - startedAtMs))} dnes`;
+      }, 1000);
+    }
   } catch (renderErr) {
     console.error("[journal] renderTodayTab failed:", renderErr);
     body.innerHTML = `<div class="empty-state"><div class="big">⚠️</div><div>Nepodařilo se vykreslit deník.</div><div class="faint" style="margin-top:8px;word-break:break-word;">${escapeHtml(String(renderErr && renderErr.message || renderErr))}</div></div>`;

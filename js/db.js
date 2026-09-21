@@ -669,3 +669,50 @@ export const JournalWeeklyReviews = {
     return data;
   },
 };
+
+export const JournalTimeBlocks = {
+  async listForDate(date) {
+    const { data, error } = await supabase
+      .from("sj_time_blocks")
+      .select("*")
+      .eq("log_date", date)
+      .order("started_at", { ascending: true });
+    if (error) throw error;
+    return data;
+  },
+  async getRunning() {
+    const { data, error } = await supabase
+      .from("sj_time_blocks")
+      .select("*")
+      .is("ended_at", null)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+  async start(date, label) {
+    const user_id = await uid();
+    const { data, error } = await supabase
+      .from("sj_time_blocks")
+      .insert({ user_id, log_date: date, label: label || "Práce", started_at: new Date().toISOString() })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+  async stop(id) {
+    const { data, error } = await supabase
+      .from("sj_time_blocks")
+      .update({ ended_at: new Date().toISOString() })
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+  async remove(id) {
+    const { error } = await supabase.from("sj_time_blocks").delete().eq("id", id);
+    if (error) throw error;
+  },
+};
