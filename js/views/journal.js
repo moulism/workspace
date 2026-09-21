@@ -430,245 +430,250 @@ async function renderTodayTab(container, body) {
 
   const skill = skillOfWeek(state.selectedDate);
 
-  body.innerHTML = `
-    <div class="card" style="margin-bottom:16px;background:var(--accent-soft);border-color:transparent;">
-      <div style="font-style:italic;">"${escapeHtml(quoteOfDay(state.selectedDate).t)}"</div>
-      ${quoteOfDay(state.selectedDate).a ? `<div class="faint" style="margin-top:4px;">— ${escapeHtml(quoteOfDay(state.selectedDate).a)}</div>` : ""}
-      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;gap:8px;">
-        <span style="flex:0 0 auto;">🧠</span>
-        <div><span class="faint">FAKT DNE</span><div>${escapeHtml(factOfDay(state.selectedDate))}</div></div>
+  try {
+    body.innerHTML = `
+      <div class="card" style="margin-bottom:16px;background:var(--accent-soft);border-color:transparent;">
+        <div style="font-style:italic;">"${escapeHtml(quoteOfDay(state.selectedDate).t)}"</div>
+        ${quoteOfDay(state.selectedDate).a ? `<div class="faint" style="margin-top:4px;">— ${escapeHtml(quoteOfDay(state.selectedDate).a)}</div>` : ""}
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;gap:8px;">
+          <span style="flex:0 0 auto;">🧠</span>
+          <div><span class="faint">FAKT DNE</span><div>${escapeHtml(factOfDay(state.selectedDate))}</div></div>
+        </div>
       </div>
-    </div>
 
-    <div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:12px;">
-      <div style="font-size:22px;flex:0 0 auto;">🎯</div>
-      <div class="grow">
-        <div class="faint">DOVEDNOST TÝDNE</div>
-        <b>${escapeHtml(skill.title)}</b>
+      <div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:12px;">
+        <div style="font-size:22px;flex:0 0 auto;">🎯</div>
+        <div class="grow">
+          <div class="faint">DOVEDNOST TÝDNE</div>
+          <b>${escapeHtml(skill.title)}</b>
+        </div>
+        <button class="btn btn-sm" id="sj-skill-open" type="button">Naučit se</button>
       </div>
-      <button class="btn btn-sm" id="sj-skill-open" type="button">Naučit se</button>
-    </div>
 
-    ${
-      hasCode
-        ? `<div class="card" style="margin-bottom:16px;">
-            ${cycle.identity_statement ? `<div class="faint" style="margin-bottom:4px;">KÝM SE STÁVÁM</div><div style="margin-bottom:${cycle.standards?.length ? "10px" : "0"};">${escapeHtml(cycle.identity_statement)}</div>` : ""}
-            ${
-              cycle.standards?.length
-                ? `<div class="faint" style="margin-bottom:4px;">MŮJ KODEX</div>
-                   <ul style="margin:0;padding-left:18px;">${cycle.standards.map((s) => `<li>${escapeHtml(s)}</li>`).join("")}</ul>`
-                : ""
-            }
-          </div>`
-        : ""
-    }
+      ${
+        hasCode
+          ? `<div class="card" style="margin-bottom:16px;">
+              ${cycle.identity_statement ? `<div class="faint" style="margin-bottom:4px;">KÝM SE STÁVÁM</div><div style="margin-bottom:${cycle.standards?.length ? "10px" : "0"};">${escapeHtml(cycle.identity_statement)}</div>` : ""}
+              ${
+                cycle.standards?.length
+                  ? `<div class="faint" style="margin-bottom:4px;">MŮJ KODEX</div>
+                     <ul style="margin:0;padding-left:18px;">${cycle.standards.map((s) => `<li>${escapeHtml(s)}</li>`).join("")}</ul>`
+                  : ""
+              }
+            </div>`
+          : ""
+      }
 
-    <div class="toolbar" style="margin-bottom:14px;">
-      <button class="btn btn-icon" id="sj-prev-day" ${state.selectedDate <= minDate ? "disabled" : ""}>←</button>
-      <input type="date" id="sj-date" value="${state.selectedDate}" min="${minDate}" max="${cycle.end_date}" />
-      <button class="btn btn-icon" id="sj-next-day" ${state.selectedDate >= maxDate ? "disabled" : ""}>→</button>
-      <button class="btn btn-sm" id="sj-today-btn">Dnes</button>
-      ${journalStreak > 0 ? `<span class="pill" style="margin-left:auto;">🔥 ${journalStreak} ${journalStreak === 1 ? "den" : journalStreak < 5 ? "dny" : "dní"} v řadě</span>` : ""}
-      <span class="faint" id="sj-save-status" ${journalStreak > 0 ? "" : 'style="margin-left:auto;"'}></span>
-    </div>
+      <div class="toolbar" style="margin-bottom:14px;">
+        <button class="btn btn-icon" id="sj-prev-day" ${state.selectedDate <= minDate ? "disabled" : ""}>←</button>
+        <input type="date" id="sj-date" value="${state.selectedDate}" min="${minDate}" max="${cycle.end_date}" />
+        <button class="btn btn-icon" id="sj-next-day" ${state.selectedDate >= maxDate ? "disabled" : ""}>→</button>
+        <button class="btn btn-sm" id="sj-today-btn">Dnes</button>
+        ${journalStreak > 0 ? `<span class="pill" style="margin-left:auto;">🔥 ${journalStreak} ${journalStreak === 1 ? "den" : journalStreak < 5 ? "dny" : "dní"} v řadě</span>` : ""}
+        <span class="faint" id="sj-save-status" ${journalStreak > 0 ? "" : 'style="margin-left:auto;"'}></span>
+      </div>
 
-    ${
-      isToday
-        ? `<div class="card" style="margin-bottom:16px;">
-            <div class="faint" style="margin-bottom:8px;">PŘEHLED — KDE PRÁVĚ STOJÍŠ</div>
-            <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center;">
-              <a href="#/calendar" class="action">📅 ${todayEvents.length} ${todayEvents.length === 1 ? "událost" : "události"} v kalendáři</a>
-              <a href="#/todos" class="action">✅ ${todayTodos.length} nesplněných úkolů na dnes</a>
-              <a href="#/finance" class="action">💰 ${(monthSpend ?? 0).toLocaleString("cs-CZ")} Kč tento měsíc</a>
-              <a href="#/goals" class="action">🏆 ${activeGoals.length} ${activeGoals.length === 1 ? "aktivní cíl" : "aktivních cílů"}</a>
-            </div>
-            ${
-              activeGoals.length
-                ? `<div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">
-                    ${activeGoals.slice(0, 3).map((g) => `
-                      <div>
-                        <div style="display:flex;justify-content:space-between;font-size:13px;"><span>${escapeHtml(g.title)}</span><span class="faint">${g.progress}%</span></div>
-                        <div class="progress-bar" style="margin-top:2px;"><div style="width:${g.progress}%"></div></div>
-                      </div>
-                    `).join("")}
-                  </div>`
-                : ""
-            }
-          </div>`
-        : ""
-    }
+      ${
+        isToday
+          ? `<div class="card" style="margin-bottom:16px;">
+              <div class="faint" style="margin-bottom:8px;">PŘEHLED — KDE PRÁVĚ STOJÍŠ</div>
+              <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center;">
+                <a href="#/calendar" class="action">📅 ${todayEvents.length} ${todayEvents.length === 1 ? "událost" : "události"} v kalendáři</a>
+                <a href="#/todos" class="action">✅ ${todayTodos.length} nesplněných úkolů na dnes</a>
+                <a href="#/finance" class="action">💰 ${(monthSpend ?? 0).toLocaleString("cs-CZ")} Kč tento měsíc</a>
+                <a href="#/goals" class="action">🏆 ${activeGoals.length} ${activeGoals.length === 1 ? "aktivní cíl" : "aktivních cílů"}</a>
+              </div>
+              ${
+                activeGoals.length
+                  ? `<div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">
+                      ${activeGoals.slice(0, 3).map((g) => `
+                        <div>
+                          <div style="display:flex;justify-content:space-between;font-size:13px;"><span>${escapeHtml(g.title)}</span><span class="faint">${g.progress}%</span></div>
+                          <div class="progress-bar" style="margin-top:2px;"><div style="width:${g.progress}%"></div></div>
+                        </div>
+                      `).join("")}
+                    </div>`
+                  : ""
+              }
+            </div>`
+          : ""
+      }
 
-    ${(() => {
-      const doneCount = state.habits.filter((h) => state.habitLogs[h.id]).length;
-      const total = state.habits.length;
-      const pct = total ? Math.round((doneCount / total) * 100) : 0;
-      if (!total) {
+      ${(() => {
+        const doneCount = state.habits.filter((h) => state.habitLogs[h.id]).length;
+        const total = state.habits.length;
+        const pct = total ? Math.round((doneCount / total) * 100) : 0;
+        if (!total) {
+          return `<div class="card" style="margin-bottom:16px;">
+            <h3 style="margin-top:0;">☀️ Ranní rutina</h3>
+            <div class="faint">Cyklus zatím nemá žádnou ranní rutinu. Přidej ji v „Upravit cyklus" — např. ustlat postel, skincare, snídaně, sklenice vody…</div>
+          </div>`;
+        }
         return `<div class="card" style="margin-bottom:16px;">
-          <h3 style="margin-top:0;">☀️ Ranní rutina</h3>
-          <div class="faint">Cyklus zatím nemá žádnou ranní rutinu. Přidej ji v „Upravit cyklus" — např. ustlat postel, skincare, snídaně, sklenice vody…</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
+            <h3 style="margin:0;">☀️ Ranní rutina</h3>
+            <span class="${doneCount === total ? "pill" : "faint"}">${doneCount === total ? "💪 Rutina hotová" : `${doneCount}/${total} splněno`}</span>
+          </div>
+          <div class="progress-bar" style="margin-bottom:12px;"><div style="width:${pct}%;"></div></div>
+          <div class="list" id="sj-habits-list">
+            ${state.habits
+              .map((h) => {
+                const streak = computeStreak(habitDates[h.id] || new Set(), state.selectedDate);
+                const done = !!state.habitLogs[h.id];
+                return `<label class="list-item routine-item ${done ? "done" : ""}">
+                  <input type="checkbox" class="sj-habit-check routine-check" data-habit="${h.id}" ${done ? "checked" : ""} />
+                  <div class="grow">${h.icon ? h.icon + " " : ""}${escapeHtml(h.name)}</div>
+                  ${streak > 0 ? `<span class="faint">🔥 ${streak}</span>` : ""}
+                </label>`;
+              })
+              .join("")}
+          </div>
         </div>`;
-      }
-      return `<div class="card" style="margin-bottom:16px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
-          <h3 style="margin:0;">☀️ Ranní rutina</h3>
-          <span class="${doneCount === total ? "pill" : "faint"}">${doneCount === total ? "💪 Rutina hotová" : `${doneCount}/${total} splněno`}</span>
-        </div>
-        <div class="progress-bar" style="margin-bottom:12px;"><div style="width:${pct}%;"></div></div>
-        <div class="list" id="sj-habits-list">
-          ${state.habits
-            .map((h) => {
-              const streak = computeStreak(habitDates[h.id] || new Set(), state.selectedDate);
-              const done = !!state.habitLogs[h.id];
-              return `<label class="list-item routine-item ${done ? "done" : ""}">
-                <input type="checkbox" class="sj-habit-check routine-check" data-habit="${h.id}" ${done ? "checked" : ""} />
-                <div class="grow">${h.icon ? h.icon + " " : ""}${escapeHtml(h.name)}</div>
-                ${streak > 0 ? `<span class="faint">🔥 ${streak}</span>` : ""}
-              </label>`;
-            })
+      })()}
+
+      <div class="grid grid-2">
+        <div class="card">
+          <h3 style="margin-top:0;">📝 Denní plán</h3>
+          <label>3 priority dneška</label>
+          ${priorities
+            .slice(0, 3)
+            .map((p, i) => `<input type="text" class="sj-priority" data-i="${i}" placeholder="Priorita ${i + 1}" value="${escapeHtml(p)}" style="margin-bottom:6px;" />`)
             .join("")}
+          <label style="margin-top:10px;">Za co jsem dnes vděčný</label>
+          ${gratitude
+            .slice(0, 3)
+            .map((g, i) => `<input type="text" class="sj-gratitude" data-i="${i}" placeholder="Vděčnost ${i + 1}" value="${escapeHtml(g)}" style="margin-bottom:6px;" />`)
+            .join("")}
+          <label style="margin-top:10px;">Dnešní záměr / afirmace</label>
+          <textarea id="sj-intention" rows="2" placeholder="Dnes se rozhoduji…">${escapeHtml(e.intention || "")}</textarea>
+          <label style="margin-top:10px;">Překážky dne (nepovinné)</label>
+          <textarea id="sj-obstacles" rows="2" placeholder="Co mě dnes může vykolejit a co udělám místo toho…">${escapeHtml(e.obstacles || "")}</textarea>
         </div>
-      </div>`;
-    })()}
 
-    <div class="grid grid-2">
-      <div class="card">
-        <h3 style="margin-top:0;">📝 Denní plán</h3>
-        <label>3 priority dneška</label>
-        ${priorities
-          .slice(0, 3)
-          .map((p, i) => `<input type="text" class="sj-priority" data-i="${i}" placeholder="Priorita ${i + 1}" value="${escapeHtml(p)}" style="margin-bottom:6px;" />`)
-          .join("")}
-        <label style="margin-top:10px;">Za co jsem dnes vděčný</label>
-        ${gratitude
-          .slice(0, 3)
-          .map((g, i) => `<input type="text" class="sj-gratitude" data-i="${i}" placeholder="Vděčnost ${i + 1}" value="${escapeHtml(g)}" style="margin-bottom:6px;" />`)
-          .join("")}
-        <label style="margin-top:10px;">Dnešní záměr / afirmace</label>
-        <textarea id="sj-intention" rows="2" placeholder="Dnes se rozhoduji…">${escapeHtml(e.intention || "")}</textarea>
-        <label style="margin-top:10px;">Překážky dne (nepovinné)</label>
-        <textarea id="sj-obstacles" rows="2" placeholder="Co mě dnes může vykolejit a co udělám místo toho…">${escapeHtml(e.obstacles || "")}</textarea>
-      </div>
-
-      <div class="card">
-        <h3 style="margin-top:0;">🌙 Večer</h3>
-        <label>Dodržel jsem dnešní plán? Co se povedlo</label>
-        <textarea id="sj-wins" rows="2" placeholder="Dnešní výhry…">${escapeHtml(e.wins || "")}</textarea>
-        <label style="margin-top:10px;">Co jsem se naučil / co příště jinak (buď k sobě upřímný)</label>
-        <textarea id="sj-lessons" rows="2">${escapeHtml(e.lessons || "")}</textarea>
-        <label style="margin-top:10px;">Hlavní zaměření na zítra</label>
-        <input type="text" id="sj-tomorrow" value="${escapeHtml(e.tomorrow_focus || "")}" />
-        <label style="margin-top:10px;">Jak hodnotíš dnešní den</label>
-        <div class="toolbar" id="sj-rating">
-          ${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="btn btn-icon sj-star" data-n="${n}">${(e.rating || 0) >= n ? "★" : "☆"}</button>`).join("")}
+        <div class="card">
+          <h3 style="margin-top:0;">🌙 Večer</h3>
+          <label>Dodržel jsem dnešní plán? Co se povedlo</label>
+          <textarea id="sj-wins" rows="2" placeholder="Dnešní výhry…">${escapeHtml(e.wins || "")}</textarea>
+          <label style="margin-top:10px;">Co jsem se naučil / co příště jinak (buď k sobě upřímný)</label>
+          <textarea id="sj-lessons" rows="2">${escapeHtml(e.lessons || "")}</textarea>
+          <label style="margin-top:10px;">Hlavní zaměření na zítra</label>
+          <input type="text" id="sj-tomorrow" value="${escapeHtml(e.tomorrow_focus || "")}" />
+          <label style="margin-top:10px;">Jak hodnotíš dnešní den</label>
+          <div class="toolbar" id="sj-rating">
+            ${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="btn btn-icon sj-star" data-n="${n}">${(e.rating || 0) >= n ? "★" : "☆"}</button>`).join("")}
+          </div>
         </div>
       </div>
-    </div>
-  `;
+    `;
 
-  let ratingValue = e.rating || 0;
-  const statusEl = body.querySelector("#sj-save-status");
-  let saveTimer = null;
+    let ratingValue = e.rating || 0;
+    const statusEl = body.querySelector("#sj-save-status");
+    let saveTimer = null;
 
-  function scheduleSave() {
-    statusEl.textContent = "Ukládám…";
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(save, 500);
-  }
-
-  async function save() {
-    const fields = {
-      cycle_id: cycle.id,
-      priorities: [...body.querySelectorAll(".sj-priority")].map((i) => i.value.trim()).filter(Boolean),
-      gratitude: [...body.querySelectorAll(".sj-gratitude")].map((i) => i.value.trim()).filter(Boolean),
-      intention: body.querySelector("#sj-intention").value.trim() || null,
-      obstacles: body.querySelector("#sj-obstacles").value.trim() || null,
-      wins: body.querySelector("#sj-wins").value.trim() || null,
-      lessons: body.querySelector("#sj-lessons").value.trim() || null,
-      tomorrow_focus: body.querySelector("#sj-tomorrow").value.trim() || null,
-      rating: ratingValue || null,
-    };
-    try {
-      state.entry = await JournalEntries.upsert(state.selectedDate, fields);
-      statusEl.textContent = "Uloženo ✓";
-    } catch (err) {
-      statusEl.textContent = "";
-      toastError(err);
+    function scheduleSave() {
+      statusEl.textContent = "Ukládám…";
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(save, 500);
     }
-  }
 
-  body.querySelectorAll("input[type=text], textarea").forEach((inp) => inp.addEventListener("input", scheduleSave));
-
-  function drawStars() {
-    body.querySelectorAll(".sj-star").forEach((btn) => {
-      const n = Number(btn.dataset.n);
-      btn.textContent = ratingValue >= n ? "★" : "☆";
-    });
-  }
-  body.querySelectorAll(".sj-star").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      const n = Number(btn.dataset.n);
-      ratingValue = ratingValue === n ? 0 : n;
-      drawStars();
-      scheduleSave();
-    })
-  );
-
-  function updateRoutineProgress() {
-    const checks = [...body.querySelectorAll(".sj-habit-check")];
-    if (!checks.length) return;
-    const done = checks.filter((c) => c.checked).length;
-    const total = checks.length;
-    const pct = Math.round((done / total) * 100);
-    const bar = body.querySelector(".routine-item")?.closest(".card")?.querySelector(".progress-bar > div");
-    if (bar) bar.style.width = `${pct}%`;
-    const badge = body.querySelector(".routine-item")?.closest(".card")?.querySelector("h3")?.nextElementSibling;
-    if (badge) {
-      if (done === total) {
-        badge.className = "pill";
-        badge.textContent = "💪 Rutina hotová";
-      } else {
-        badge.className = "faint";
-        badge.textContent = `${done}/${total} splněno`;
-      }
-    }
-  }
-
-  body.querySelectorAll(".sj-habit-check").forEach((cb) =>
-    cb.addEventListener("change", async () => {
+    async function save() {
+      const fields = {
+        cycle_id: cycle.id,
+        priorities: [...body.querySelectorAll(".sj-priority")].map((i) => i.value.trim()).filter(Boolean),
+        gratitude: [...body.querySelectorAll(".sj-gratitude")].map((i) => i.value.trim()).filter(Boolean),
+        intention: body.querySelector("#sj-intention").value.trim() || null,
+        obstacles: body.querySelector("#sj-obstacles").value.trim() || null,
+        wins: body.querySelector("#sj-wins").value.trim() || null,
+        lessons: body.querySelector("#sj-lessons").value.trim() || null,
+        tomorrow_focus: body.querySelector("#sj-tomorrow").value.trim() || null,
+        rating: ratingValue || null,
+      };
       try {
-        await JournalHabitLogs.toggle(cb.dataset.habit, state.selectedDate, cb.checked);
-        cb.closest(".list-item").classList.toggle("done", cb.checked);
-        updateRoutineProgress();
+        state.entry = await JournalEntries.upsert(state.selectedDate, fields);
+        statusEl.textContent = "Uloženo ✓";
       } catch (err) {
+        statusEl.textContent = "";
         toastError(err);
-        cb.checked = !cb.checked;
       }
-    })
-  );
+    }
 
-  body.querySelector("#sj-date").addEventListener("change", (ev) => {
-    state.selectedDate = ev.target.value;
-    renderTodayTab(container, body);
-  });
-  body.querySelector("#sj-prev-day").addEventListener("click", () => {
-    state.selectedDate = addDaysIso(state.selectedDate, -1);
-    renderTodayTab(container, body);
-  });
-  body.querySelector("#sj-next-day").addEventListener("click", () => {
-    state.selectedDate = addDaysIso(state.selectedDate, 1);
-    renderTodayTab(container, body);
-  });
-  body.querySelector("#sj-today-btn").addEventListener("click", () => {
-    state.selectedDate = todayIso();
-    renderTodayTab(container, body);
-  });
-  body.querySelector("#sj-skill-open").addEventListener("click", () => {
-    openModal(`
-      <div class="modal-header"><h3>🎯 ${escapeHtml(skill.title)}</h3></div>
-      <div style="white-space:pre-line;line-height:1.55;">${escapeHtml(skill.body)}</div>
-      <div class="modal-actions"><button class="btn btn-primary" data-close>Rozumím</button></div>
-    `);
-  });
+    body.querySelectorAll("input[type=text], textarea").forEach((inp) => inp.addEventListener("input", scheduleSave));
+
+    function drawStars() {
+      body.querySelectorAll(".sj-star").forEach((btn) => {
+        const n = Number(btn.dataset.n);
+        btn.textContent = ratingValue >= n ? "★" : "☆";
+      });
+    }
+    body.querySelectorAll(".sj-star").forEach((btn) =>
+      btn.addEventListener("click", () => {
+        const n = Number(btn.dataset.n);
+        ratingValue = ratingValue === n ? 0 : n;
+        drawStars();
+        scheduleSave();
+      })
+    );
+
+    function updateRoutineProgress() {
+      const checks = [...body.querySelectorAll(".sj-habit-check")];
+      if (!checks.length) return;
+      const done = checks.filter((c) => c.checked).length;
+      const total = checks.length;
+      const pct = Math.round((done / total) * 100);
+      const bar = body.querySelector(".routine-item")?.closest(".card")?.querySelector(".progress-bar > div");
+      if (bar) bar.style.width = `${pct}%`;
+      const badge = body.querySelector(".routine-item")?.closest(".card")?.querySelector("h3")?.nextElementSibling;
+      if (badge) {
+        if (done === total) {
+          badge.className = "pill";
+          badge.textContent = "💪 Rutina hotová";
+        } else {
+          badge.className = "faint";
+          badge.textContent = `${done}/${total} splněno`;
+        }
+      }
+    }
+
+    body.querySelectorAll(".sj-habit-check").forEach((cb) =>
+      cb.addEventListener("change", async () => {
+        try {
+          await JournalHabitLogs.toggle(cb.dataset.habit, state.selectedDate, cb.checked);
+          cb.closest(".list-item").classList.toggle("done", cb.checked);
+          updateRoutineProgress();
+        } catch (err) {
+          toastError(err);
+          cb.checked = !cb.checked;
+        }
+      })
+    );
+
+    body.querySelector("#sj-date").addEventListener("change", (ev) => {
+      state.selectedDate = ev.target.value;
+      renderTodayTab(container, body);
+    });
+    body.querySelector("#sj-prev-day").addEventListener("click", () => {
+      state.selectedDate = addDaysIso(state.selectedDate, -1);
+      renderTodayTab(container, body);
+    });
+    body.querySelector("#sj-next-day").addEventListener("click", () => {
+      state.selectedDate = addDaysIso(state.selectedDate, 1);
+      renderTodayTab(container, body);
+    });
+    body.querySelector("#sj-today-btn").addEventListener("click", () => {
+      state.selectedDate = todayIso();
+      renderTodayTab(container, body);
+    });
+    body.querySelector("#sj-skill-open").addEventListener("click", () => {
+      openModal(`
+        <div class="modal-header"><h3>🎯 ${escapeHtml(skill.title)}</h3></div>
+        <div style="white-space:pre-line;line-height:1.55;">${escapeHtml(skill.body)}</div>
+        <div class="modal-actions"><button class="btn btn-primary" data-close>Rozumím</button></div>
+      `);
+    });
+  } catch (renderErr) {
+    console.error("[journal] renderTodayTab failed:", renderErr);
+    body.innerHTML = `<div class="empty-state"><div class="big">⚠️</div><div>Nepodařilo se vykreslit deník.</div><div class="faint" style="margin-top:8px;word-break:break-word;">${escapeHtml(String(renderErr && renderErr.message || renderErr))}</div></div>`;
+  }
 }
 
 // Týdenní review — styl Full Focus Planneru: jednou týdně se zastavíš,
