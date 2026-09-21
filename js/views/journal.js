@@ -618,32 +618,51 @@ async function renderTodayTab(container, body) {
         </div>`;
       })()}
 
+      ${(() => {
+        const topGoal = activeGoals[0] || null;
+        const doneCount = state.habits.filter((h) => state.habitLogs[h.id]).length;
+        const habitTotal = state.habits.length;
+        const p1Placeholder = topGoal
+          ? `Krok k „${topGoal.title}“ — co dnes uděláš, aby to bylo blíž?`
+          : "Co dnes MUSÍ být hotové, i kdyby se pokazilo všechno ostatní?";
+        const filledPriorities = priorities.filter((x) => x.trim()).length;
+        const morningDone = filledPriorities > 0;
+
+        return `
       <div class="grid grid-2">
         <div class="card">
-          <h3 style="margin-top:0;">📝 Denní plán</h3>
-          <label>3 priority dneška</label>
+          <h3 style="margin-top:0;">🎯 Fokus dne</h3>
+          ${topGoal ? `<div class="faint" style="margin-bottom:8px;">Aktivní cíl: <b>${escapeHtml(topGoal.title)}</b> (${topGoal.progress}%) — <a href="#/goals" class="action">otevřít</a></div>` : ""}
+          <label>Tři věci, po kterých dnešek nebude promarněný</label>
           ${priorities
             .slice(0, 3)
-            .map((p, i) => `<input type="text" class="sj-priority" data-i="${i}" placeholder="Priorita ${i + 1}" value="${escapeHtml(p)}" style="margin-bottom:6px;" />`)
+            .map(
+              (p, i) =>
+                `<input type="text" class="sj-priority" data-i="${i}" placeholder="${i === 0 ? escapeHtml(p1Placeholder) : `Priorita ${i + 1}`}" value="${escapeHtml(p)}" style="margin-bottom:6px;" />`
+            )
             .join("")}
-          <label style="margin-top:10px;">Za co jsem dnes vděčný</label>
+          <label style="margin-top:10px;">Na čem už teď stavíš (ne co ti chybí)</label>
           ${gratitude
             .slice(0, 3)
             .map((g, i) => `<input type="text" class="sj-gratitude" data-i="${i}" placeholder="Vděčnost ${i + 1}" value="${escapeHtml(g)}" style="margin-bottom:6px;" />`)
             .join("")}
-          <label style="margin-top:10px;">Dnešní záměr / afirmace</label>
+          <label style="margin-top:10px;">Jak se dnes rozhoduješ ukázat</label>
           <textarea id="sj-intention" rows="2" placeholder="Dnes se rozhoduji…">${escapeHtml(e.intention || "")}</textarea>
-          <label style="margin-top:10px;">Překážky dne (nepovinné)</label>
+          <label style="margin-top:10px;">Co tě dnes nejspíš srazí — a co uděláš MÍSTO toho (nepovinné)</label>
           <textarea id="sj-obstacles" rows="2" placeholder="Co mě dnes může vykolejit a co udělám místo toho…">${escapeHtml(e.obstacles || "")}</textarea>
         </div>
 
         <div class="card">
-          <h3 style="margin-top:0;">🌙 Večer</h3>
-          <label>Dodržel jsem dnešní plán? Co se povedlo</label>
+          <h3 style="margin-top:0;">🌙 Večer — účtování</h3>
+          <div class="faint" style="margin-bottom:8px;">
+            ${habitTotal ? `Ranní rutina: <b>${doneCount}/${habitTotal}</b> splněno.` : ""}
+            ${morningDone ? ` Ráno jsi řekl, že dnešek stojí na: „${escapeHtml(priorities.filter((x) => x.trim()).join(", "))}“.` : ""}
+          </div>
+          <label>Dodržel jsi to, co jsi slíbil sám sobě ráno?</label>
           <textarea id="sj-wins" rows="2" placeholder="Dnešní výhry…">${escapeHtml(e.wins || "")}</textarea>
-          <label style="margin-top:10px;">Co jsem se naučil / co příště jinak (buď k sobě upřímný)</label>
+          <label style="margin-top:10px;">Kde jsi dnes ubral plyn — a co uděláš zítra jinak (buď k sobě upřímný)</label>
           <textarea id="sj-lessons" rows="2">${escapeHtml(e.lessons || "")}</textarea>
-          <label style="margin-top:10px;">Hlavní zaměření na zítra</label>
+          <label style="margin-top:10px;">Jedna věc, kterou zítra nesmíš odložit</label>
           <input type="text" id="sj-tomorrow" value="${escapeHtml(e.tomorrow_focus || "")}" />
           <label style="margin-top:10px;">Jak hodnotíš dnešní den</label>
           <div class="toolbar" id="sj-rating">
@@ -651,6 +670,8 @@ async function renderTodayTab(container, body) {
           </div>
         </div>
       </div>
+        `;
+      })()}
     `;
 
     let ratingValue = e.rating || 0;
