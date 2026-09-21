@@ -105,7 +105,7 @@ const FACTS = [
   "Warren Buffett stále bydlí v domě, který koupil v roce 1958 za 31 500 dolarů.",
   "Většina úspěšných lidí čte podstatně víc knih než průměrná populace — čtení je jedna z nejlevnějších forem vzdělávání, jaká existuje.",
   "Netflix původně půjčoval DVD poštou — na streamovací model přešel až o osm let později.",
-  "Sardinie, Okinawa a Nikoya patří mezi tzv. „modré zóny" — místa s nejvyšším podílem lidí, kteří se dožívají přes 100 let, a spojuje je hlavně pohyb a komunita, ne diety.",
+  "Sardinie, Okinawa a Nikoya patří mezi tzv. „modré zóny“ — místa s nejvyšším podílem lidí, kteří se dožívají přes 100 let, a spojuje je hlavně pohyb a komunita, ne diety.",
   "Průměrný člověk stráví kontrolou telefonu přes 3 hodiny denně — to je přes 45 dní v roce.",
   "Psaní rukou (ne na klávesnici) zlepšuje zapamatování informací — aktivuje víc oblastí mozku najednou.",
   "Steve Jobs nosil každý den stejné oblečení, aby ušetřil mentální kapacitu na důležitější rozhodnutí.",
@@ -119,10 +119,10 @@ const FACTS = [
   "Ranní světlo (10–15 minut venku hned po probuzení) pomáhá nastavit vnitřní hodiny a zlepšuje spánek i energii přes den.",
   "Ikea, Coca-Cola i Rolex vznikly z původně úplně jiného nápadu, než se kterým firmy nakonec proslavily.",
   "Elon Musk i Jeff Bezos si na začátku svého podnikání dlouho nevypláceli žádnou (nebo minimální) mzdu, dokud firma neměla stabilní příjem.",
-  "Lidé podle výzkumů dodržují sliby dané sami sobě mnohem hůř než sliby dané druhým — proto pomáhá mít „accountability partnera" nebo si závazek napsat veřejně.",
+  "Lidé podle výzkumů dodržují sliby dané sami sobě mnohem hůř než sliby dané druhým — proto pomáhá mít „accountability partnera“ nebo si závazek napsat veřejně.",
   "Krátký 20minutový spánek (power nap) přes den dokáže zlepšit pozornost a náladu, aniž by narušil noční spánek.",
   "Nejbohatší 1 % lidí na světě se z velké části neproslavilo jedním nápadem, ale desítkami let trpělivého sudou investování a reinvestování zisků.",
-  "Psychologové označují odkládání nepříjemných úkolů jako „emoční regulaci" — neřešíš úkol, ale nepříjemný pocit z něj, a to je důvod, proč logika sama prokrastinaci neporazí.",
+  "Psychologové označují odkládání nepříjemných úkolů jako „emoční regulaci“ — neřešíš úkol, ale nepříjemný pocit z něj, a to je důvod, proč logika sama prokrastinaci neporazí.",
 ];
 
 // Fakt dne teď vrací několik krátkých karet místo jedné — mini feed
@@ -152,15 +152,15 @@ const SKILLS = [
   { title: "Eisenhowerova matice", body: "Rozděl úkoly do čtyř kvadrantů: důležité+naléhavé (udělej hned), důležité+nenaléhavé (naplánuj), nenaléhavé pro tebe ale důležité pro někoho jiného (deleguj), nedůležité+nenaléhavé (zruš). Většina lidí tráví čas na naléhavém, ale nedůležitém — zkus si takhle rozdělit dnešní todo list." },
   { title: "Time blocking", body: "Místo volného seznamu úkolů si napevno naplánuj bloky času v kalendáři na konkrétní práci, ne jen na schůzky. Co není v kalendáři, se často nestane. Zkus si zítřek naplánovat po hodinových blocích." },
   { title: "1% zlepšení denně", body: "Není potřeba zlepšit se o 100 % najednou — stačí 1 % denně a po roce jsi zhruba 37× lepší. Zaměř se na malé, opakovatelné zlepšení systému, ne na jednorázový velký skok." },
-  { title: "Pomodoro technika", body: "25 minut soustředěné práce, 5 minut pauza, po čtyřech kolech delší pauza. Mozek podává lepší výkon v ohraničených blocích s jasným koncem než při neomezené práci „donekonečna"." },
+  { title: "Pomodoro technika", body: "25 minut soustředěné práce, 5 minut pauza, po čtyřech kolech delší pauza. Mozek podává lepší výkon v ohraničených blocích s jasným koncem než při neomezené práci „donekonečna“." },
   { title: "Sněz žábu ráno", body: "Udělej hned ráno ten nejtěžší nebo nejnepříjemnější úkol dne. Zbytek dne pak jede s pocitem úlevy a hybnou silou, místo aby ses tomu úkolu celý den vyhýbal." },
   { title: "Rozpočet 50/30/20", body: "50 % příjmu na potřeby, 30 % na chtíče, 20 % na spoření a investice. Jednoduchý rámec, jak si automaticky rozdělit rozpočet bez složitého trackování každé koruny — zkus si tento měsíc spočítat, jak blízko jsi tomuto poměru." },
-  { title: "SMART cíle", body: "Specifický, Měřitelný, Dosažitelný, Relevantní, Časově ohraničený. „Chci zhubnout" není cíl. „Zhubnu 5 kg do konce listopadu tím, že budu 4× týdně cvičit" je. Zkus si takhle přepsat jeden ze svých cílů." },
+  { title: "SMART cíle", body: "Specifický, Měřitelný, Dosažitelný, Relevantní, Časově ohraničený. „Chci zhubnout“ není cíl. „Zhubnu 5 kg do konce listopadu tím, že budu 4× týdně cvičit“ je. Zkus si takhle přepsat jeden ze svých cílů." },
   { title: "Pravidlo 5 sekund", body: "Jakmile máš impuls něco udělat, odpočítej v hlavě 5-4-3-2-1 a hned jednej, než ti mozek stihne najít výmluvu. Funguje hlavně proti prokrastinaci a ranní netečnosti." },
   { title: "Deep work", body: "Nejcennější práce vzniká v dlouhých nerušených blocích soustředění, ne v roztříštěných 10minutových okýnkách mezi notifikacemi. Vypni si na 90 minut telefon a uvidíš rozdíl v kvalitě výstupu." },
   { title: "Klam utopených nákladů", body: "Jen proto, že jsi do něčeho už investoval čas nebo peníze, neznamená, že v tom máš pokračovat, pokud to nefunguje. Rozhoduj se podle budoucí hodnoty, ne podle minulé investice." },
   { title: "Dávej dřív, než žádáš", body: "Lidé, kteří v networkingu nejdřív nabízejí hodnotu — pomoc, kontakt, radu — a až pak žádají o něco na oplátku, budují mnohem silnější a dlouhodobější vztahy než ti, co jdou rovnou s žádostí." },
-  { title: "Pravidlo jedné věci", body: "Než začneš cokoliv nového, zeptej se: „Jaká jedna věc by mi dnes nejvíc pohnula s cílem, aby po jejím udělání bylo všechno ostatní jednodušší nebo zbytečné?" — a udělej ji jako první." },
+  { title: "Pravidlo jedné věci", body: "Než začneš cokoliv nového, zeptej se: „Jaká jedna věc by mi dnes nejvíc pohnula s cílem, aby po jejím udělání bylo všechno ostatní jednodušší nebo zbytečné?“ — a udělej ji jako první." },
   { title: "Kompoundovaný efekt návyků", body: "Malé denní akce — 10 stran čtení, jeden těžký hovor, 1 % zlepšení — se v moment X nezdají důležité. Po měsících a letech ale tvoří exponenciální rozdíl mezi průměrným a výjimečným výsledkem." },
 ];
 
