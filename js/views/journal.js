@@ -186,7 +186,7 @@ function renderNoCycle(container) {
       <div class="big">📗</div>
       <h2 style="margin:6px 0;">Successful Journal</h2>
       <p class="muted" style="max-width:420px;margin:0 auto 18px;">
-        90denní deník kázně: ráno si stoicky připrav priority, vděčnost i překážky, večer si upřímně zhodnoť den, sleduj šňůry svých návyků a jednou týdně udělej review podle metody Full Focus Planneru.
+        90denní deník kázně: ráno si odškrtni svou rutinu a nastav priority, večer si upřímně zhodnoť den, sleduj šňůry a jednou týdně udělej review podle metody Full Focus Planneru.
         Začni nový 90denní cyklus a rozjeď to.
       </p>
       <button class="btn btn-primary" id="start-cycle-btn">+ Nový 90denní cyklus</button>
@@ -388,9 +388,41 @@ async function renderTodayTab(container, body) {
         : ""
     }
 
+    ${(() => {
+      const doneCount = state.habits.filter((h) => state.habitLogs[h.id]).length;
+      const total = state.habits.length;
+      const pct = total ? Math.round((doneCount / total) * 100) : 0;
+      if (!total) {
+        return `<div class="card" style="margin-bottom:16px;">
+          <h3 style="margin-top:0;">☀️ Ranní rutina</h3>
+          <div class="faint">Cyklus zatím nemá žádnou ranní rutinu. Přidej ji v „Upravit cyklus" — např. ustlat postel, skincare, snídaně, sklenice vody…</div>
+        </div>`;
+      }
+      return `<div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
+          <h3 style="margin:0;">☀️ Ranní rutina</h3>
+          <span class="${doneCount === total ? "pill" : "faint"}">${doneCount === total ? "💪 Rutina hotová" : `${doneCount}/${total} splněno`}</span>
+        </div>
+        <div class="progress-bar" style="margin-bottom:12px;"><div style="width:${pct}%;"></div></div>
+        <div class="list" id="sj-habits-list">
+          ${state.habits
+            .map((h) => {
+              const streak = computeStreak(habitDates[h.id] || new Set(), state.selectedDate);
+              const done = !!state.habitLogs[h.id];
+              return `<label class="list-item routine-item ${done ? "done" : ""}">
+                <input type="checkbox" class="sj-habit-check routine-check" data-habit="${h.id}" ${done ? "checked" : ""} />
+                <div class="grow">${h.icon ? h.icon + " " : ""}${escapeHtml(h.name)}</div>
+                ${streak > 0 ? `<span class="faint">🔥 ${streak}</span>` : ""}
+              </label>`;
+            })
+            .join("")}
+        </div>
+      </div>`;
+    })()}
+
     <div class="grid grid-2">
       <div class="card">
-        <h3 style="margin-top:0;">☀️ Ráno</h3>
+        <h3 style="margin-top:0;">📝 Denní plán</h3>
         <label>3 priority dneška</label>
         ${priorities
           .slice(0, 3)
@@ -403,26 +435,8 @@ async function renderTodayTab(container, body) {
           .join("")}
         <label style="margin-top:10px;">Dnešní záměr / afirmace</label>
         <textarea id="sj-intention" rows="2" placeholder="Dnes se rozhoduji…">${escapeHtml(e.intention || "")}</textarea>
-        <label style="margin-top:10px;">Jaké překážky dnes čekám a jak na ně zareaguju</label>
-        <textarea id="sj-obstacles" rows="2" placeholder="Stoická příprava předem: co mě dnes může vykolejit a co udělám místo toho…">${escapeHtml(e.obstacles || "")}</textarea>
-
-        ${
-          state.habits.length
-            ? `<label style="margin-top:14px;">Návyky</label>
-               <div class="list" id="sj-habits-list">
-                 ${state.habits
-                   .map((h) => {
-                     const streak = computeStreak(habitDates[h.id] || new Set(), state.selectedDate);
-                     return `<label class="list-item ${state.habitLogs[h.id] ? "done" : ""}">
-                       <input type="checkbox" class="sj-habit-check" data-habit="${h.id}" ${state.habitLogs[h.id] ? "checked" : ""} />
-                       <div class="grow">${h.icon ? h.icon + " " : ""}${escapeHtml(h.name)}</div>
-                       ${streak > 0 ? `<span class="faint">🔥 ${streak}</span>` : ""}
-                     </label>`;
-                   })
-                   .join("")}
-               </div>`
-            : `<div class="faint" style="margin-top:14px;">Cyklus zatím nemá žádné sledované návyky (přidáš je v úpravě cyklu).</div>`
-        }
+        <label style="margin-top:10px;">Překážky dne (nepovinné)</label>
+        <textarea id="sj-obstacles" rows="2" placeholder="Co mě dnes může vykolejit a co udělám místo toho…">${escapeHtml(e.obstacles || "")}</textarea>
       </div>
 
       <div class="card">
@@ -489,11 +503,32 @@ async function renderTodayTab(container, body) {
     })
   );
 
+  function updateRoutineProgress() {
+    const checks = [...body.querySelectorAll(".sj-habit-check")];
+    if (!checks.length) return;
+    const done = checks.filter((c) => c.checked).length;
+    const total = checks.length;
+    const pct = Math.round((done / total) * 100);
+    const bar = body.querySelector(".routine-item")?.closest(".card")?.querySelector(".progress-bar > div");
+    if (bar) bar.style.width = `${pct}%`;
+    const badge = body.querySelector(".routine-item")?.closest(".card")?.querySelector("h3")?.nextElementSibling;
+    if (badge) {
+      if (done === total) {
+        badge.className = "pill";
+        badge.textContent = "💪 Rutina hotová";
+      } else {
+        badge.className = "faint";
+        badge.textContent = `${done}/${total} splněno`;
+      }
+    }
+  }
+
   body.querySelectorAll(".sj-habit-check").forEach((cb) =>
     cb.addEventListener("change", async () => {
       try {
         await JournalHabitLogs.toggle(cb.dataset.habit, state.selectedDate, cb.checked);
         cb.closest(".list-item").classList.toggle("done", cb.checked);
+        updateRoutineProgress();
       } catch (err) {
         toastError(err);
         cb.checked = !cb.checked;
@@ -661,7 +696,7 @@ async function renderOverviewTab(container, body) {
     ${
       state.habits.length
         ? `<div class="card">
-            <h3 style="margin-top:0;">Návyky za tento cyklus</h3>
+            <h3 style="margin-top:0;">Ranní rutina za tento cyklus</h3>
             <div class="list">
               ${state.habits
                 .map(
@@ -753,7 +788,17 @@ async function openCycleModal(container, cycle) {
       habits = (await JournalHabits.listByCycle(cycle.id)).map((h) => ({ id: h.id, name: h.name, icon: h.icon || "" }));
     } catch {}
   }
-  if (!habits.length) habits = [{ name: "", icon: "" }, { name: "", icon: "" }, { name: "", icon: "" }];
+  if (!habits.length) {
+    // Nová rutina se předvyplní běžnými rannými návyky, aby s tím šlo hned
+    // začít — uživatel si je klidně přejmenuje nebo smaže.
+    habits = [
+      { name: "Ustlat postel", icon: "🛏️" },
+      { name: "Ranní hygiena / skincare", icon: "🧴" },
+      { name: "Snídaně", icon: "🍳" },
+      { name: "Sklenice vody", icon: "💧" },
+      { name: "10 minut bez telefonu", icon: "📵" },
+    ];
+  }
 
   const start = cycle?.start_date || todayIso();
   const defaultEnd = addDaysIso(start, 89);
@@ -780,18 +825,18 @@ async function openCycleModal(container, cycle) {
        </div>
      </div>
      <div class="field">
-       <label>Sledované návyky</label>
+       <label>Ranní rutina (co si každé ráno odškrtneš)</label>
        <div id="cyc-habits">
          ${habits
            .map(
              (h, i) => `<div class="row" data-habit-row="${i}" style="margin-bottom:6px;">
                <input type="text" class="cyc-habit-icon" value="${escapeHtml(h.icon || "")}" placeholder="🏃" style="flex:0 0 54px;" />
-               <input type="text" class="cyc-habit-name" value="${escapeHtml(h.name || "")}" placeholder="Název návyku" />
+               <input type="text" class="cyc-habit-name" value="${escapeHtml(h.name || "")}" placeholder="Položka rutiny, např. Protažení" />
              </div>`
            )
            .join("")}
        </div>
-       <button type="button" class="btn btn-ghost btn-sm" id="add-habit-row">+ Další návyk</button>
+       <button type="button" class="btn btn-ghost btn-sm" id="add-habit-row">+ Další položka</button>
      </div>
      <div class="modal-actions">
        ${!isNew ? `<button class="btn btn-danger" id="cyc-delete" style="margin-right:auto;">Smazat cyklus</button>` : ""}
@@ -810,7 +855,7 @@ async function openCycleModal(container, cycle) {
     const row = document.createElement("div");
     row.className = "row";
     row.style.marginBottom = "6px";
-    row.innerHTML = `<input type="text" class="cyc-habit-icon" placeholder="🏃" style="flex:0 0 54px;" /><input type="text" class="cyc-habit-name" placeholder="Název návyku" />`;
+    row.innerHTML = `<input type="text" class="cyc-habit-icon" placeholder="🏃" style="flex:0 0 54px;" /><input type="text" class="cyc-habit-name" placeholder="Položka rutiny, např. Protažení" />`;
     wrap.appendChild(row);
   });
 
