@@ -11,48 +11,51 @@ export async function render(container) {
   const theme = getStoredTheme();
 
   container.innerHTML = `
-    <div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
-      <div style="width:56px;height:56px;border-radius:50%;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:22px;background:var(--bg-hover);flex-shrink:0;">🦇</div>
-      <div class="grow" style="min-width:200px;">
-        <div style="font-family:var(--font-display);font-size:18px;letter-spacing:.03em;">MASTER M</div>
-        <div class="faint">${user?.email || ""}</div>
+    <div class="hub-grid">
+      <div class="card" style="grid-column: span 4; grid-row: span 3;display:flex;flex-direction:column;gap:16px;">
+        <div style="display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:6px 0 10px;">
+          <div style="width:64px;height:64px;border-radius:50%;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:26px;background:var(--bg-hover);">🦇</div>
+          <div>
+            <div style="font-family:var(--font-display);font-size:18px;letter-spacing:.03em;">MASTER M</div>
+            <div class="faint">${user?.email || ""}</div>
+          </div>
+          <button class="btn btn-danger btn-sm" id="signout">Odhlásit se</button>
+        </div>
+        <div style="border-top:1px solid var(--border);padding-top:14px;">
+          <div class="faint" style="text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">🎨 Vzhled</div>
+          <div class="filter-bar">
+            <button class="chip ${theme === "system" ? "active" : ""}" data-theme="system">Systémový</button>
+            <button class="chip ${theme === "light" ? "active" : ""}" data-theme="light">Světlý</button>
+            <button class="chip ${theme === "dark" ? "active" : ""}" data-theme="dark">Tmavý</button>
+          </div>
+        </div>
       </div>
-      <button class="btn btn-danger btn-sm" id="signout">Odhlásit se</button>
-    </div>
 
-    <div class="grid grid-2">
-      <div class="card">
+      <div class="card" style="grid-column: span 8;">
         <h3 style="margin-top:0;">🔑 Heslo</h3>
         <p class="faint" style="margin-bottom:10px;">
           Nastav si heslo, ať se dá appka na ploše otevřít a přihlásit přímo v ní — přihlašovací odkaz emailem
           se totiž vždy otevře v prohlížeči, ne v nainstalované appce. Z bezpečnostních důvodů nejde zobrazit
           heslo, které už máš nastavené — jen ho nastavit nové.
         </p>
-        <div class="field">
-          <label>Nové heslo</label>
-          <div class="row" style="gap:6px;">
-            <input type="password" id="new-password" minlength="6" placeholder="aspoň 6 znaků" style="flex:1;" />
-            <button type="button" class="btn btn-icon" id="pw-toggle" title="Zobrazit/skrýt" style="flex:0 0 auto;">👁</button>
+        <div class="row">
+          <div class="field">
+            <label>Nové heslo</label>
+            <div class="row" style="gap:6px;">
+              <input type="password" id="new-password" minlength="6" placeholder="aspoň 6 znaků" style="flex:1;" />
+              <button type="button" class="btn btn-icon" id="pw-toggle" title="Zobrazit/skrýt" style="flex:0 0 auto;">👁</button>
+            </div>
           </div>
-        </div>
-        <div class="field">
-          <label>Potvrdit nové heslo</label>
-          <input type="password" id="new-password-confirm" minlength="6" placeholder="zopakuj heslo" />
+          <div class="field">
+            <label>Potvrdit nové heslo</label>
+            <input type="password" id="new-password-confirm" minlength="6" placeholder="zopakuj heslo" />
+          </div>
         </div>
         <button class="btn btn-primary btn-sm" id="save-password">Uložit heslo</button>
         <div class="faint" id="pw-status" style="margin-top:8px;"></div>
       </div>
 
-      <div class="card">
-        <h3 style="margin-top:0;">🎨 Vzhled</h3>
-        <div class="filter-bar">
-          <button class="chip ${theme === "system" ? "active" : ""}" data-theme="system">Systémový</button>
-          <button class="chip ${theme === "light" ? "active" : ""}" data-theme="light">Světlý</button>
-          <button class="chip ${theme === "dark" ? "active" : ""}" data-theme="dark">Tmavý</button>
-        </div>
-      </div>
-
-      <div class="card">
+      <div class="card" style="grid-column: span 8;">
         <h3 style="margin-top:0;">📅 Google (Kalendář + Gmail)</h3>
         <div class="muted" style="margin-bottom:10px;">
           Stav: <span class="pill ${hasGoogle() ? "" : "pill-warning"}">${hasGoogle() ? "Připojeno pro tuto session" : "Nepřipojeno / vypršelo"}</span>
@@ -64,7 +67,7 @@ export async function render(container) {
         </p>
       </div>
 
-      <div class="card">
+      <div class="card" style="grid-column: span 8;">
         <h3 style="margin-top:0;">🤖 AI generování (flashcards / testy)</h3>
         <p class="faint">
           Generování běží přes Supabase Edge Function <code>ai-generate</code>, která používá tvůj vlastní

@@ -2,14 +2,30 @@ import { GymSessions, Events } from "../db.js";
 import { escapeHtml, openModal, confirmDialog, fmtDate, todayIso } from "../ui.js";
 import { toast, toastError } from "../toast.js";
 
+const WEEKLY_TARGET = 4;
+let heroChart = null;
+
 export async function render(container) {
   container.innerHTML = `
-    <div class="section-header">
-      <h2>Gym</h2>
-      <button class="btn btn-primary" id="new-session-btn">+ Nový trénink</button>
+    <div class="hub-grid">
+      <div class="card hub-hero" style="grid-column: span 5; grid-row: span 2;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <h3 style="margin:0;">Tento týden</h3>
+          <button class="btn btn-primary btn-sm" id="new-session-btn">+ Trénink</button>
+        </div>
+        <div class="hub-hero-top">
+          <div class="dash-goal-canvas-wrap hub-hero-ring">
+            <canvas id="hero-ring"></canvas>
+            <div class="dash-goal-pct" style="font-size:17px;" id="hero-pct">0 / ${WEEKLY_TARGET}</div>
+          </div>
+        </div>
+        <div class="dash-kpi-row" id="gym-stats"></div>
+      </div>
+      <div class="card" style="grid-column: span 7; grid-row: span 2;">
+        <h3 style="margin:0 0 10px;">Historie tréninků</h3>
+        <div class="list" id="gym-list"></div>
+      </div>
     </div>
-    <div class="dash-kpi-row" style="margin-bottom:16px;" id="gym-stats"></div>
-    <div class="list" id="gym-list"></div>
   `;
   container.querySelector("#new-session-btn").addEventListener("click", () => openSessionModal(container));
   await load(container);
@@ -18,6 +34,7 @@ export async function render(container) {
 async function load(container) {
   const list = container.querySelector("#gym-list");
   const stats = container.querySelector("#gym-stats");
+  const pctLabel = container.querySelector("#hero-pct");
   try {
     const sessions = await GymSessions.list();
     const now = new Date();
@@ -28,12 +45,25 @@ async function load(container) {
     const thisWeek = sessions.filter((s) => new Date(s.session_date) >= weekAgo).length;
     const thisMonth = sessions.filter((s) => new Date(s.session_date) >= monthAgo).length;
     const done = sessions.filter((s) => s.done).length;
+
+    const pct = Math.min(100, Math.round((thisWeek / WEEKLY_TARGET) * 100));
+    pctLabel.textContent = `${thisWeek} / ${WEEKLY_TARGET}`;
+    heroChart?.destroy();
+    const ringCanvas = container.querySelector("#hero-ring");
+    if (window.Chart && ringCanvas) {
+      heroChart = new Chart(ringCanvas, {
+        type: "doughnut",
+        data: { datasets: [{ data: [pct, 100 - pct], backgroundColor: ["#22d3ee", "rgba(147,163,181,.18)"], borderWidth: 0 }] },
+        options: { cutout: "78%", plugins: { legend: { display: false }, tooltip: { enabled: false } }, animation: { duration: 500 } },
+      });
+    }
+
     stats.innerHTML = `
-      <div class="dash-kpi"><div class="n">${thisWeek}</div><div class="l">Tento týden</div></div>
       <div class="dash-kpi"><div class="n">${thisMonth}</div><div class="l">Tento měsíc</div></div>
       <div class="dash-kpi"><div class="n">${sessions.length}</div><div class="l">Celkem</div></div>
       <div class="dash-kpi"><div class="n">${done}</div><div class="l">Dokončeno</div></div>
     `;
+
     if (!sessions.length) {
       list.innerHTML = `<div class="empty-state"><div class="big">🏋️</div>Zatím žádné tréninky.</div>`;
       return;

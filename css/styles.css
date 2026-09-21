@@ -818,6 +818,11 @@ a.card { display: block; text-decoration: none; color: inherit; }
 .dash-goal-pct { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--accent); }
 .dash-goal-title { font-size: 11px; color: var(--text-muted); text-align: center; max-width: 84px; }
 
+/* Larger hero-sized variant of the goal-ring pattern, reused on Goals/Gym/Meals/Shopping */
+.hub-hero-ring { width: 128px !important; height: 128px !important; }
+.hub-hero-ring canvas { width: 128px !important; height: 128px !important; }
+.hub-hero-ring .dash-goal-pct { font-size: 20px; }
+
 /* ===================== Finance ===================== */
 .fin-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
 @media (max-width: 700px) { .fin-kpis { grid-template-columns: repeat(2, 1fr); } }

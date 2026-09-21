@@ -5,98 +5,113 @@ import { toast, toastError } from "../toast.js";
 const STATUS_LABEL = { active: "Aktivní", completed: "Splněný", paused: "Pozastavený" };
 const RING_COLORS = { active: "#22d3ee", completed: "#2f9e5b", paused: "#c98a1f" };
 
-let filters = { status: "all" };
-let charts = [];
+let heroChart = null;
 
 export async function render(container) {
   container.innerHTML = `
-    <div class="section-header">
-      <div class="toolbar filter-bar">
-        <button class="chip ${filters.status === "all" ? "active" : ""}" data-status="all">Vše</button>
-        ${Object.entries(STATUS_LABEL)
-          .map(([id, l]) => `<button class="chip ${filters.status === id ? "active" : ""}" data-status="${id}">${l}</button>`)
-          .join("")}
+    <div class="hub-grid">
+      <div class="card hub-hero" style="grid-column: span 5; grid-row: span 2;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <h3 style="margin:0;">Celkový postup</h3>
+          <button class="btn btn-primary btn-sm" id="new-goal-btn">+ Nový cíl</button>
+        </div>
+        <div class="hub-hero-top">
+          <div class="dash-goal-canvas-wrap hub-hero-ring">
+            <canvas id="hero-ring"></canvas>
+            <div class="dash-goal-pct" id="hero-pct">0%</div>
+          </div>
+        </div>
+        <div class="dash-kpi-row" id="goals-kpis"></div>
       </div>
-      <button class="btn btn-primary" id="new-goal-btn">+ Nový cíl</button>
+      <div class="card" style="grid-column: span 7; grid-row: span 2;">
+        <h3 style="margin:0 0 12px;">Podle kategorie</h3>
+        <div id="category-rows"></div>
+      </div>
+      <div class="card" style="grid-column: span 12;">
+        <h3 style="margin:0 0 10px;">Všechny cíle</h3>
+        <div class="list" id="goals-list"></div>
+      </div>
     </div>
-    <div class="dash-kpi-row" id="goals-kpis" style="margin-bottom:18px;"></div>
-    <div class="grid grid-3" id="goals-grid"></div>
   `;
   container.querySelector("#new-goal-btn").addEventListener("click", () => openGoalModal(container));
-  container.querySelectorAll("[data-status]").forEach((b) =>
-    b.addEventListener("click", () => {
-      filters.status = b.dataset.status;
-      render(container);
-    })
-  );
   await load(container);
 }
 
 async function load(container) {
-  const grid = container.querySelector("#goals-grid");
   const kpis = container.querySelector("#goals-kpis");
-  charts.forEach((c) => c.destroy());
-  charts = [];
+  const catBox = container.querySelector("#category-rows");
+  const listBox = container.querySelector("#goals-list");
+  const pctLabel = container.querySelector("#hero-pct");
   try {
     const all = await Goals.list();
     const active = all.filter((g) => g.status === "active");
     const completed = all.filter((g) => g.status === "completed");
     const avg = active.length ? Math.round(active.reduce((s, g) => s + (g.progress || 0), 0) / active.length) : 0;
-    kpis.innerHTML = `
-      <div class="dash-kpi"><div class="n">${active.length}</div><div class="l">Aktivní</div></div>
-      <div class="dash-kpi"><div class="n">${completed.length}</div><div class="l">Splněno</div></div>
-      <div class="dash-kpi"><div class="n">${all.length}</div><div class="l">Celkem cílů</div></div>
-      <div class="dash-kpi"><div class="n">${avg}%</div><div class="l">Průměrný postup</div></div>
-    `;
 
-    const goals = filters.status === "all" ? all : all.filter((g) => g.status === filters.status);
-    if (!goals.length) {
-      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="big">🎯</div>Zatím žádné cíle.</div>`;
-      return;
-    }
-    grid.innerHTML = goals
-      .map(
-        (g, i) => `<div class="card">
-          <div style="display:flex;gap:14px;align-items:center;">
-            <div class="dash-goal-canvas-wrap" style="flex-shrink:0;">
-              <canvas id="goal-ring-${i}"></canvas>
-              <div class="dash-goal-pct">${g.progress}%</div>
-            </div>
-            <div class="grow" style="min-width:0;">
-              <b class="truncate" style="display:block;">${escapeHtml(g.title)}</b>
-              <div class="faint" style="margin-top:4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-                ${g.category ? escapeHtml(g.category) : ""}
-                <span class="pill">${STATUS_LABEL[g.status]}</span>
-              </div>
-            </div>
-          </div>
-          ${g.description ? `<div class="faint" style="margin-top:10px;">${escapeHtml(g.description)}</div>` : ""}
-          ${g.target_date ? `<div class="faint" style="margin-top:8px;">Termín: ${fmtDate(g.target_date)}</div>` : ""}
-          <div class="toolbar" style="margin-top:10px;">
-            <button class="btn btn-sm" data-edit="${g.id}">Upravit</button>
-          </div>
-        </div>`
-      )
-      .join("");
-
-    if (window.Chart) {
-      goals.forEach((g, i) => {
-        const ctx = container.querySelector(`#goal-ring-${i}`);
-        if (!ctx) return;
-        const pct = Math.max(0, Math.min(100, g.progress || 0));
-        const color = RING_COLORS[g.status] || "#22d3ee";
-        charts.push(
-          new Chart(ctx, {
-            type: "doughnut",
-            data: { datasets: [{ data: [pct, 100 - pct], backgroundColor: [color, "rgba(147,163,181,.18)"], borderWidth: 0 }] },
-            options: { cutout: "72%", plugins: { legend: { display: false }, tooltip: { enabled: false } }, animation: { duration: 400 } },
-          })
-        );
+    pctLabel.textContent = `${avg}%`;
+    heroChart?.destroy();
+    const ringCanvas = container.querySelector("#hero-ring");
+    if (window.Chart && ringCanvas) {
+      heroChart = new Chart(ringCanvas, {
+        type: "doughnut",
+        data: { datasets: [{ data: [avg, 100 - avg], backgroundColor: ["#22d3ee", "rgba(147,163,181,.18)"], borderWidth: 0 }] },
+        options: { cutout: "78%", plugins: { legend: { display: false }, tooltip: { enabled: false } }, animation: { duration: 500 } },
       });
     }
 
-    grid.querySelectorAll("[data-edit]").forEach((b) => {
-      const g = goals.find((x) => x.id === b.dataset.edit);
+    kpis.innerHTML = `
+      <div class="dash-kpi"><div class="n">${active.length}</div><div class="l">Aktivní</div></div>
+      <div class="dash-kpi"><div class="n">${completed.length}</div><div class="l">Splněno</div></div>
+      <div class="dash-kpi"><div class="n">${all.length}</div><div class="l">Celkem</div></div>
+    `;
+
+    const byCat = {};
+    for (const g of all) {
+      const key = g.category?.trim() || "Bez kategorie";
+      (byCat[key] ||= []).push(g);
+    }
+    const catNames = Object.keys(byCat).sort((a, b) => a.localeCompare(b, "cs"));
+    if (!catNames.length) {
+      catBox.innerHTML = `<div class="faint">Zatím žádné cíle.</div>`;
+    } else {
+      catBox.innerHTML = catNames
+        .map((name) => {
+          const items = byCat[name];
+          const catAvg = Math.round(items.reduce((s, g) => s + (g.progress || 0), 0) / items.length);
+          return `<div style="margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px;">
+              <span>${escapeHtml(name)} <span class="faint">· ${items.length}</span></span>
+              <span class="faint">${catAvg}%</span>
+            </div>
+            <div class="progress-bar"><div style="width:${catAvg}%"></div></div>
+          </div>`;
+        })
+        .join("");
+    }
+
+    if (!all.length) {
+      listBox.innerHTML = `<div class="empty-state"><div class="big">🎯</div>Zatím žádné cíle.</div>`;
+      return;
+    }
+    listBox.innerHTML = all
+      .map(
+        (g) => `<div class="list-item" style="align-items:flex-start;">
+          <div class="grow">
+            <div style="display:flex;gap:8px;align-items:center;">
+              <b class="truncate">${escapeHtml(g.title)}</b>
+              <span class="pill">${STATUS_LABEL[g.status]}</span>
+            </div>
+            <div class="faint" style="margin-top:3px;">
+              ${g.category ? escapeHtml(g.category) + " · " : ""}${g.progress}% ${g.target_date ? "· do " + fmtDate(g.target_date) : ""}
+            </div>
+            <div class="progress-bar" style="margin-top:6px;max-width:240px;"><div style="width:${g.progress}%;background:${RING_COLORS[g.status] || "var(--accent)"};"></div></div>
+          </div>
+          <button type="button" class="btn btn-sm" data-edit="${g.id}">Upravit</button>
+        </div>`
+      )
+      .join("");
+    listBox.querySelectorAll("[data-edit]").forEach((b) => {
+      const g = all.find((x) => x.id === b.dataset.edit);
       b.addEventListener("click", () => openGoalModal(container, g));
     });
   } catch (e) {

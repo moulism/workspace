@@ -5,34 +5,48 @@ import { toast, toastError } from "../toast.js";
 const MEAL_TYPES = { breakfast: "Snídaně", lunch: "Oběd", dinner: "Večeře", snack: "Svačina" };
 let selectedDate = todayIso();
 let recipesCache = [];
+let heroChart = null;
 
 export async function render(container) {
   container.innerHTML = `
-    <div class="section-header">
-      <div class="toolbar">
-        <button class="btn btn-icon" id="prev-day">←</button>
-        <input type="date" id="meal-date" value="${selectedDate}" />
-        <button class="btn btn-icon" id="next-day">→</button>
+    <div class="hub-grid">
+      <div class="card hub-hero" style="grid-column: span 5; grid-row: span 2;">
+        <div class="toolbar" style="justify-content:center;">
+          <button class="btn btn-icon" id="prev-day">←</button>
+          <input type="date" id="meal-date" value="${selectedDate}" />
+          <button class="btn btn-icon" id="next-day">→</button>
+        </div>
+        <div class="hub-hero-top">
+          <div class="dash-goal-canvas-wrap hub-hero-ring">
+            <canvas id="hero-ring"></canvas>
+            <div class="dash-goal-pct" style="font-size:15px;" id="hero-kcal">0 kcal</div>
+          </div>
+        </div>
+        <div class="dash-kpi-row" id="daily-totals"></div>
+      </div>
+      <div class="card" style="grid-column: span 7; grid-row: span 2;">
+        <h3 style="margin:0 0 10px;">Záznamy dne</h3>
+        <form id="add-meal-form" style="margin-bottom:14px;">
+          <div class="row">
+            <div class="field"><label>Typ</label>
+              <select id="m-type">${Object.entries(MEAL_TYPES).map(([id, l]) => `<option value="${id}">${l}</option>`).join("")}</select>
+            </div>
+            <div class="field"><label>Recept (volitelné)</label><select id="m-recipe"><option value="">— vlastní —</option></select></div>
+          </div>
+          <div class="row">
+            <div class="field"><label>Název</label><input type="text" id="m-name" placeholder="Co jsi jedl/a" /></div>
+          </div>
+          <div class="row">
+            <div class="field"><label>Kalorie</label><input type="number" id="m-cal" /></div>
+            <div class="field"><label>B (g)</label><input type="number" id="m-protein" /></div>
+            <div class="field"><label>S (g)</label><input type="number" id="m-carbs" /></div>
+            <div class="field"><label>T (g)</label><input type="number" id="m-fat" /></div>
+          </div>
+          <button class="btn btn-primary btn-sm" type="submit">Přidat záznam</button>
+        </form>
+        <div class="list" id="meals-list"></div>
       </div>
     </div>
-    <div class="dash-kpi-row" id="daily-totals" style="margin-bottom:14px;"></div>
-    <form id="add-meal-form" class="card" style="margin-bottom:14px;">
-      <div class="row">
-        <div class="field"><label>Typ</label>
-          <select id="m-type">${Object.entries(MEAL_TYPES).map(([id, l]) => `<option value="${id}">${l}</option>`).join("")}</select>
-        </div>
-        <div class="field"><label>Recept (volitelné)</label><select id="m-recipe"><option value="">— vlastní —</option></select></div>
-        <div class="field"><label>Název</label><input type="text" id="m-name" placeholder="Co jsi jedl/a" /></div>
-      </div>
-      <div class="row">
-        <div class="field"><label>Kalorie</label><input type="number" id="m-cal" /></div>
-        <div class="field"><label>Bílkoviny (g)</label><input type="number" id="m-protein" /></div>
-        <div class="field"><label>Sacharidy (g)</label><input type="number" id="m-carbs" /></div>
-        <div class="field"><label>Tuky (g)</label><input type="number" id="m-fat" /></div>
-      </div>
-      <button class="btn btn-primary" type="submit">Přidat záznam</button>
-    </form>
-    <div class="list" id="meals-list"></div>
   `;
 
   container.querySelector("#meal-date").addEventListener("change", (e) => {
@@ -95,6 +109,7 @@ function shiftDay(container, delta) {
 
 async function load(container) {
   const list = container.querySelector("#meals-list");
+  const kcalLabel = container.querySelector("#hero-kcal");
   try {
     const meals = await Meals.list({ date: selectedDate });
     const totals = meals.reduce(
@@ -108,11 +123,26 @@ async function load(container) {
       { cal: 0, protein: 0, carbs: 0, fat: 0 }
     );
     container.querySelector("#daily-totals").innerHTML = `
-      <div class="dash-kpi"><div class="n">${totals.cal}</div><div class="l">Kcal</div></div>
       <div class="dash-kpi"><div class="n">${totals.protein}g</div><div class="l">Bílkoviny</div></div>
       <div class="dash-kpi"><div class="n">${totals.carbs}g</div><div class="l">Sacharidy</div></div>
       <div class="dash-kpi"><div class="n">${totals.fat}g</div><div class="l">Tuky</div></div>
     `;
+    kcalLabel.textContent = `${totals.cal} kcal`;
+
+    heroChart?.destroy();
+    const ringCanvas = container.querySelector("#hero-ring");
+    const kcalFromMacros = [totals.protein * 4, totals.carbs * 4, totals.fat * 9];
+    const hasMacros = kcalFromMacros.some((v) => v > 0);
+    if (window.Chart && ringCanvas) {
+      heroChart = new Chart(ringCanvas, {
+        type: "doughnut",
+        data: {
+          labels: ["Bílkoviny", "Sacharidy", "Tuky"],
+          datasets: [{ data: hasMacros ? kcalFromMacros : [1, 1, 1], backgroundColor: hasMacros ? ["#22d3ee", "#c98a1f", "#dc4c3f"] : ["rgba(147,163,181,.18)", "rgba(147,163,181,.12)", "rgba(147,163,181,.08)"], borderWidth: 0 }],
+        },
+        options: { cutout: "72%", plugins: { legend: { display: false }, tooltip: { enabled: hasMacros } }, animation: { duration: 400 } },
+      });
+    }
 
     if (!meals.length) {
       list.innerHTML = `<div class="empty-state"><div class="big">🍽️</div>Pro tento den zatím nic.</div>`;

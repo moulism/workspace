@@ -18,30 +18,34 @@ function storeList(name) {
 }
 
 let currentList = getStoredList();
+let progressChart = null;
 
 export async function render(container) {
   container.innerHTML = `
-    <div class="section-header">
-      <div class="toolbar">
-        <select id="list-select"></select>
-        <button class="btn btn-sm" id="new-list-btn">+ Nový seznam</button>
+    <div class="hub-grid">
+      <div class="card hub-hero" style="grid-column: span 4; grid-row: span 2;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <select id="list-select" style="max-width:130px;"></select>
+          <button class="btn btn-icon" id="new-list-btn" title="Nový seznam">+</button>
+        </div>
+        <div class="hub-hero-top">
+          <div class="dash-goal-canvas-wrap hub-hero-ring">
+            <canvas id="progress-ring"></canvas>
+            <div class="dash-goal-pct" id="progress-pct">0%</div>
+          </div>
+        </div>
+        <button class="btn btn-sm btn-danger" id="clear-checked" style="width:100%;">Vymazat odškrtnuté</button>
       </div>
-      <button class="btn btn-sm btn-danger" id="clear-checked">Vymazat odškrtnuté</button>
-    </div>
-    <div class="card" id="shopping-progress-card" style="margin-bottom:14px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <b>Postup nákupu</b>
-        <span class="pill" id="shopping-progress-pill">0 / 0</span>
+      <div class="card" style="grid-column: span 8; grid-row: span 2;">
+        <form id="add-item-form" style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+          <input type="text" id="item-name" placeholder="Co koupit…" style="flex:2;min-width:160px;" required />
+          <input type="text" id="item-qty" placeholder="Množství (volitelné)" style="flex:1;min-width:120px;" />
+          <input type="text" id="item-category" placeholder="Kategorie (volitelné)" style="flex:1;min-width:120px;" />
+          <button class="btn btn-primary" type="submit">Přidat</button>
+        </form>
+        <div id="shopping-list" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 20px;"></div>
       </div>
-      <div class="progress-bar"><div id="shopping-progress-fill" style="width:0%;"></div></div>
     </div>
-    <form id="add-item-form" class="card" style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
-      <input type="text" id="item-name" placeholder="Co koupit…" style="flex:2;min-width:160px;" required />
-      <input type="text" id="item-qty" placeholder="Množství (volitelné)" style="flex:1;min-width:120px;" />
-      <input type="text" id="item-category" placeholder="Kategorie (volitelné)" style="flex:1;min-width:120px;" />
-      <button class="btn btn-primary" type="submit">Přidat</button>
-    </form>
-    <div id="shopping-list"></div>
   `;
 
   await populateListSelect(container);
@@ -127,19 +131,26 @@ async function populateListSelect(container) {
 
 async function load(container) {
   const box = container.querySelector("#shopping-list");
-  box.innerHTML = `<div class="center" style="padding:30px;"><div class="spinner"></div></div>`;
+  box.innerHTML = `<div class="center" style="padding:30px;grid-column:1/-1;"><div class="spinner"></div></div>`;
   try {
     const items = await ShoppingItems.list(currentList);
 
     const checkedCount = items.filter((i) => i.checked).length;
     const pct = items.length ? Math.round((checkedCount / items.length) * 100) : 0;
-    const pill = container.querySelector("#shopping-progress-pill");
-    const fill = container.querySelector("#shopping-progress-fill");
-    if (pill) pill.textContent = `${checkedCount} / ${items.length}`;
-    if (fill) fill.style.width = `${pct}%`;
+    const pctLabel = container.querySelector("#progress-pct");
+    if (pctLabel) pctLabel.textContent = items.length ? `${pct}%` : "–";
+    progressChart?.destroy();
+    const ringCanvas = container.querySelector("#progress-ring");
+    if (window.Chart && ringCanvas) {
+      progressChart = new Chart(ringCanvas, {
+        type: "doughnut",
+        data: { datasets: [{ data: [pct, 100 - pct], backgroundColor: ["#2f9e5b", "rgba(147,163,181,.18)"], borderWidth: 0 }] },
+        options: { cutout: "78%", plugins: { legend: { display: false }, tooltip: { enabled: false } }, animation: { duration: 400 } },
+      });
+    }
 
     if (!items.length) {
-      box.innerHTML = `<div class="empty-state"><div class="big">🛒</div>Seznam je prázdný. Přidej první položku výše.</div>`;
+      box.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="big">🛒</div>Seznam je prázdný. Přidej první položku výše.</div>`;
       return;
     }
 
@@ -165,25 +176,27 @@ async function load(container) {
       .map((g) => {
         const groupChecked = groups[g].filter((i) => i.checked).length;
         return `
-      <div class="faint" style="margin:14px 0 6px;text-transform:uppercase;letter-spacing:.04em;display:flex;justify-content:space-between;">
-        <span>${escapeHtml(g)}</span><span>${groupChecked} / ${groups[g].length}</span>
-      </div>
-      <div class="list">
-        ${groups[g]
-          .map(
-            (i) => `<div class="list-item ${i.checked ? "done" : ""}" data-row="${i.id}">
-              <input type="checkbox" data-id="${i.id}" class="check" ${i.checked ? "checked" : ""} style="width:auto;" />
-              <div class="grow" data-edit="${i.id}" style="cursor:pointer;">
-                <div class="title">${escapeHtml(i.item)}</div>
-                <div class="faint">
-                  ${i.quantity ? escapeHtml(i.quantity) : ""}
-                  ${i.source_recipe_id && recipeTitles[i.source_recipe_id] ? `${i.quantity ? " · " : ""}🍳 ${escapeHtml(recipeTitles[i.source_recipe_id])}` : ""}
+      <div style="margin-bottom:14px;">
+        <div class="faint" style="margin:0 0 6px;text-transform:uppercase;letter-spacing:.04em;display:flex;justify-content:space-between;">
+          <span>${escapeHtml(g)}</span><span>${groupChecked} / ${groups[g].length}</span>
+        </div>
+        <div class="list">
+          ${groups[g]
+            .map(
+              (i) => `<div class="list-item ${i.checked ? "done" : ""}" data-row="${i.id}">
+                <input type="checkbox" data-id="${i.id}" class="check" ${i.checked ? "checked" : ""} style="width:auto;" />
+                <div class="grow" data-edit="${i.id}" style="cursor:pointer;">
+                  <div class="title">${escapeHtml(i.item)}</div>
+                  <div class="faint">
+                    ${i.quantity ? escapeHtml(i.quantity) : ""}
+                    ${i.source_recipe_id && recipeTitles[i.source_recipe_id] ? `${i.quantity ? " · " : ""}🍳 ${escapeHtml(recipeTitles[i.source_recipe_id])}` : ""}
+                  </div>
                 </div>
-              </div>
-              <button type="button" class="btn btn-icon btn-ghost btn-sm" data-del="${i.id}" title="Smazat">✕</button>
-            </div>`
-          )
-          .join("")}
+                <button type="button" class="btn btn-icon btn-ghost btn-sm" data-del="${i.id}" title="Smazat">✕</button>
+              </div>`
+            )
+            .join("")}
+        </div>
       </div>`;
       })
       .join("");
@@ -216,7 +229,7 @@ async function load(container) {
       })
     );
   } catch (e) {
-    box.innerHTML = `<div class="empty-state"><div class="big">⚠️</div>Nepodařilo se načíst nákupní seznam.</div>`;
+    box.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="big">⚠️</div>Nepodařilo se načíst nákupní seznam.</div>`;
     toastError(e);
   }
 }
