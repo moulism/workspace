@@ -1,34 +1,83 @@
-import { JournalCycles, JournalHabits, JournalEntries, JournalHabitLogs } from "../db.js";
+import { JournalCycles, JournalHabits, JournalEntries, JournalHabitLogs, JournalWeeklyReviews, Events, Todos } from "../db.js";
 import { escapeHtml, openModal, confirmDialog, todayIso, fmtDate } from "../ui.js";
 import { toast, toastError } from "../toast.js";
 
-// Původní motivační citáty (nejde o citace z žádné konkrétní knihy) —
-// jeden se vybere podle dne v roce, takže se každý den drží stejný.
+// Citáty ke kázni, návykům a sebekázni — směs ověřených citátů (stoikové,
+// historické osobnosti) s uvedeným autorem a několika původními myšlenkami
+// bez autora. Jeden se vybere podle dne v roce, takže se každý den drží
+// stejný v celé aplikaci.
 const QUOTES = [
-  "Disciplína je most mezi cíli a jejich dosažením.",
-  "Malý krok dnes je lepší než dokonalý plán zítra.",
-  "Nejsi to, co si myslíš. Jsi to, co děláš každý den.",
-  "Pohodlí je tichý zabiják ambicí.",
-  "Návyky, které si vybuduješ dnes, tě ponesou celý rok.",
-  "Nečekej na motivaci — vytvoř si systém a motivace přijde sama.",
-  "Úspěch je součet malých rozhodnutí, opakovaných den za dnem.",
-  "Zaměř se na proces. Výsledek je jen jeho odraz.",
-  "Kázeň je forma sebeúcty.",
-  "Každý den je hlasování o tom, kým se stáváš.",
-  "Vytrvalost poráží talent, když talent nevytrvá.",
-  "Nejtěžší krok je vždy ten první — dnešní.",
-  "Buduj si na svých vítězstvích, ne na svých výmluvách.",
-  "Co měříš, to zlepšuješ. Co sleduješ, to roste.",
-  "Klid přichází z přípravy, ne z náhody.",
-  "Silná vůle se netrénuje ve výjimečných chvílích, ale v obyčejných dnech.",
-  "Menší, konzistentní kroky porazí velké, ale nepravidelné výbuchy snahy.",
-  "Vděčnost mění to, co máš, na dostatek.",
-  "Tvoje budoucnost sleduje tvoje dnešní návyky, ne tvoje dnešní nálady.",
-  "Cíl bez plánu je jen přání. Plán bez akce je jen teorie.",
-  "Nejsi obětí svého dne — jsi jeho architekt.",
-  "Každé ráno máš na výběr: znovu usnout, nebo se probudit naplno.",
-  "Růst bolí. Stagnace bolí víc — jen pomaleji.",
-  "Dělej to, co je správné, ne to, co je snadné.",
+  // --- Stoikové: příprava ráno, sebekázeň, jednání navzdory okolnostem ---
+  { t: "Máš moc nad svou myslí — ne nad vnějšími událostmi. Uvědom si to, a najdeš sílu.", a: "Marcus Aurelius" },
+  { t: "Přestaň se hádat o tom, jaký by měl být dobrý člověk. Buď jím.", a: "Marcus Aurelius" },
+  { t: "Překážka na cestě se stává cestou.", a: "Marcus Aurelius" },
+  { t: "Pokud to není správné, nedělej to. Pokud to není pravda, neříkej to.", a: "Marcus Aurelius" },
+  { t: "Omez se na přítomný okamžik.", a: "Marcus Aurelius" },
+  { t: "Ke šťastnému životu stačí málo — vše je uvnitř tebe, ve způsobu tvého myšlení.", a: "Marcus Aurelius" },
+  { t: "Štěstí je to, co se stane, když se příprava setká s příležitostí.", a: "Seneca" },
+  { t: "Víc trpíme ve své představivosti, než ve skutečnosti.", a: "Seneca" },
+  { t: "Obtíže posilují mysl, tak jako práce posiluje tělo.", a: "Seneca" },
+  { t: "Nemáme málo času — jde jen o to, kolik ho promarníme.", a: "Seneca" },
+  { t: "Svobodný je ten, kdo je odvážný.", a: "Seneca" },
+  { t: "Začni žít hned a počítej každý jednotlivý den jako samostatný život.", a: "Seneca" },
+  { t: "Nezáleží na tom, co se ti stane, ale na tom, jak na to zareaguješ.", a: "Epiktétos" },
+  { t: "Nejdřív si řekni, kým chceš být, a pak dělej to, co musíš dělat.", a: "Epiktétos" },
+  { t: "Svobodný není ten, kdo dělá, co chce, ale ten, kdo je pánem sám sobě.", a: "Epiktétos" },
+  { t: "Využij naplno to, co je ve tvé moci, zbytek přijmi tak, jak přichází.", a: "Epiktétos" },
+
+  // --- Návyky, disciplína, systémy ---
+  { t: "Nedosáhneš úrovně svých cílů. Klesneš na úroveň svých systémů.", a: "James Clear" },
+  { t: "Disciplína znamená svobodu.", a: "Jocko Willink" },
+  { t: "Motivace tě nastartuje. Návyk tě udrží v pohybu.", a: "Jim Ryun" },
+  { t: "Bolest disciplíny váží gramy. Bolest lítosti váží tuny.", a: "Jim Rohn" },
+  { t: "Jsme to, co opakovaně děláme. Dokonalost tedy není čin, ale návyk.", a: "Aristotelés" },
+  { t: "Nezáleží na tom, jak pomalu jdeš, dokud se nezastavíš.", a: "Konfucius" },
+  { t: "Naše největší sláva není v tom, že nikdy nepadneme, ale v tom, že pokaždé znovu vstaneme.", a: "Konfucius" },
+  { t: "Muž, který přenese horu, začíná odnášením malých kamenů.", a: "Konfucius" },
+  { t: "Vítězní bojovníci nejdřív zvítězí, a pak jdou do bitvy.", a: "Sun Tzu" },
+  { t: "Příležitosti se množí tím, že se jich chopíš.", a: "Sun Tzu" },
+
+  // --- Práce, vytrvalost, příprava ---
+  { t: "Nic hodnotného nepřijde snadno.", a: "Theodore Roosevelt" },
+  { t: "Dělej, co můžeš, s tím, co máš, tam, kde jsi.", a: "Theodore Roosevelt" },
+  { t: "Nejlepší odměnou v životě je možnost tvrdě pracovat na práci, která stojí za to.", a: "Theodore Roosevelt" },
+  { t: "Když se nepřipravíš, připravuješ se na neúspěch.", a: "Benjamin Franklin" },
+  { t: "Energie a vytrvalost překonají vše.", a: "Benjamin Franklin" },
+  { t: "Ztracený čas se už nikdy nevrátí.", a: "Benjamin Franklin" },
+  { t: "Dej mi šest hodin na kácení stromu a první čtyři strávím broušením sekery.", a: "Abraham Lincoln" },
+  { t: "Úspěch není konečný, neúspěch není smrtelný — důležitá je odvaha pokračovat.", a: "Winston Churchill" },
+  { t: "Nejde o to, jak jsi chytrý, ale o to, jak dlouho vydržíš u problému.", a: "Albert Einstein" },
+  { t: "Ať si myslíš, že to dokážeš, nebo že ne — máš pravdu.", a: "Henry Ford" },
+  { t: "Úspěšný bojovník je průměrný člověk s laserovým zaměřením.", a: "Bruce Lee" },
+  { t: "Zůstaň tvrdý.", a: "David Goggins" },
+
+  // --- Původní myšlenky (bez konkrétního autora) ---
+  { t: "Disciplína je most mezi cíli a jejich dosažením." },
+  { t: "Malý krok dnes je lepší než dokonalý plán zítra." },
+  { t: "Nejsi to, co si myslíš. Jsi to, co děláš každý den." },
+  { t: "Pohodlí je tichý zabiják ambicí." },
+  { t: "Návyky, které si vybuduješ dnes, tě ponesou celý rok." },
+  { t: "Nečekej na motivaci — vytvoř si systém a motivace přijde sama." },
+  { t: "Úspěch je součet malých rozhodnutí, opakovaných den za dnem." },
+  { t: "Zaměř se na proces. Výsledek je jen jeho odraz." },
+  { t: "Kázeň je forma sebeúcty." },
+  { t: "Každý den je hlasování o tom, kým se stáváš." },
+  { t: "Vytrvalost poráží talent, když talent nevytrvá." },
+  { t: "Nejtěžší krok je vždy ten první — dnešní." },
+  { t: "Buduj si na svých vítězstvích, ne na svých výmluvách." },
+  { t: "Co měříš, to zlepšuješ. Co sleduješ, to roste." },
+  { t: "Klid přichází z přípravy, ne z náhody." },
+  { t: "Silná vůle se netrénuje ve výjimečných chvílích, ale v obyčejných dnech." },
+  { t: "Menší, konzistentní kroky porazí velké, ale nepravidelné výbuchy snahy." },
+  { t: "Vděčnost mění to, co máš, na dostatek." },
+  { t: "Tvoje budoucnost sleduje tvoje dnešní návyky, ne tvoje dnešní nálady." },
+  { t: "Cíl bez plánu je jen přání. Plán bez akce je jen teorie." },
+  { t: "Nejsi obětí svého dne — jsi jeho architekt." },
+  { t: "Každé ráno máš na výběr: znovu usnout, nebo se probudit naplno." },
+  { t: "Růst bolí. Stagnace bolí víc — jen pomaleji." },
+  { t: "Dělej to, co je správné, ne to, co je snadné." },
+  { t: "Nikdy neselhávej dvakrát za sebou — jedno vynechání je nehoda, dvě je nový (špatný) návyk." },
+  { t: "Nejde o to, jak dobrý jsi dnes. Jde o to, kým se staneš za rok stejné kázně." },
 ];
 
 function quoteOfDay(dateIso) {
@@ -62,13 +111,37 @@ function todayIsoFrom(d) {
   return copy.toISOString().slice(0, 10);
 }
 
+// Pondělí týdne, ve kterém leží dateIso — základ pro týdenní review
+// (Full Focus Planner styl: plánuj/hodnoť po týdnech, ne jen po dnech).
+function mondayOfWeek(dateIso) {
+  const d = new Date(dateIso + "T00:00:00");
+  const day = d.getDay() || 7; // Ne=0 -> 7
+  d.setDate(d.getDate() - (day - 1));
+  return todayIsoFrom(d);
+}
+
+// Šňůra po sobě jdoucích dní (podle Atomic Habits — "never miss twice").
+// Počítá se odzadu od uptoDateIso; pokud dnešek ještě není vyplněný,
+// začne se počítat od včerejška, aby rozjetá šňůra "nespadla na nulu"
+// jen proto, že den ještě neskončil.
+function computeStreak(datesSet, uptoDateIso) {
+  let d = uptoDateIso;
+  if (!datesSet.has(d)) d = addDaysIso(d, -1);
+  let streak = 0;
+  while (datesSet.has(d)) {
+    streak++;
+    d = addDaysIso(d, -1);
+  }
+  return streak;
+}
+
 let state = {
   cycle: null,
   habits: [],
   selectedDate: todayIso(),
   entry: null,
   habitLogs: {}, // habitId -> true
-  tab: "today", // today | overview | history
+  tab: "today", // today | week | overview | history
 };
 
 export async function render(container) {
@@ -112,7 +185,7 @@ function renderNoCycle(container) {
       <div class="big">📗</div>
       <h2 style="margin:6px 0;">Successful Journal</h2>
       <p class="muted" style="max-width:420px;margin:0 auto 18px;">
-        90denní deník odpovědnosti: ráno si nastav priority a vděčnost, večer zhodnoť den a sleduj své návyky.
+        90denní deník kázně: ráno si stoicky připrav priority, vděčnost i překážky, večer si upřímně zhodnoť den, sleduj šňůry svých návyků a jednou týdně udělej review podle metody Full Focus Planneru.
         Začni nový 90denní cyklus a rozjeď to.
       </p>
       <button class="btn btn-primary" id="start-cycle-btn">+ Nový 90denní cyklus</button>
@@ -193,6 +266,7 @@ function renderShell(container) {
 
     <div class="toolbar" style="margin:16px 0;">
       <button class="chip ${state.tab === "today" ? "active" : ""}" data-tab="today">Dnešní stránka</button>
+      <button class="chip ${state.tab === "week" ? "active" : ""}" data-tab="week">Týdenní review</button>
       <button class="chip ${state.tab === "overview" ? "active" : ""}" data-tab="overview">Přehled 90 dní</button>
       <button class="chip ${state.tab === "history" ? "active" : ""}" data-tab="history">Historie cyklů</button>
     </div>
@@ -210,6 +284,7 @@ function renderShell(container) {
 
   const body = container.querySelector("#sj-body");
   if (state.tab === "today") renderTodayTab(container, body);
+  else if (state.tab === "week") renderWeekTab(container, body);
   else if (state.tab === "overview") renderOverviewTab(container, body);
   else renderHistoryTab(container, body);
 }
@@ -219,14 +294,33 @@ async function renderTodayTab(container, body) {
   const cycle = state.cycle;
   const minDate = cycle.start_date;
   const maxDate = cycle.end_date > todayIso() ? todayIso() : cycle.end_date;
+  const isToday = state.selectedDate === todayIso();
 
+  let allEntries = [];
+  let allLogs = [];
+  let todayEvents = [];
+  let todayTodos = [];
   try {
-    const [entry, logs] = await Promise.all([
+    const tasks = [
       JournalEntries.getByDate(state.selectedDate),
       JournalHabitLogs.listForDate(state.selectedDate),
-    ]);
+      JournalEntries.listByCycle(cycle.id),
+      JournalHabitLogs.listForRange(cycle.start_date, cycle.end_date),
+    ];
+    if (isToday) {
+      tasks.push(
+        Events.listRange(`${state.selectedDate}T00:00:00`, `${state.selectedDate}T23:59:59`).catch(() => []),
+        Todos.list({ done: false, from: state.selectedDate, to: state.selectedDate }).catch(() => [])
+      );
+    }
+    const results = await Promise.all(tasks);
+    const [entry, logs, entriesForCycle, logsForCycle, eventsToday, todosToday] = results;
     state.entry = entry;
     state.habitLogs = Object.fromEntries(logs.map((l) => [l.habit_id, true]));
+    allEntries = entriesForCycle || [];
+    allLogs = logsForCycle || [];
+    todayEvents = eventsToday || [];
+    todayTodos = todosToday || [];
   } catch (e) {
     toastError(e);
     state.entry = null;
@@ -237,18 +331,54 @@ async function renderTodayTab(container, body) {
   const priorities = e.priorities?.length ? e.priorities : ["", "", ""];
   const gratitude = e.gratitude?.length ? e.gratitude : ["", "", ""];
 
+  const entryDates = new Set(allEntries.filter((x) => x.priorities?.length || x.gratitude?.length || x.intention || x.wins || x.lessons).map((x) => x.entry_date));
+  const journalStreak = computeStreak(entryDates, todayIso());
+
+  const habitDates = {};
+  allLogs.forEach((l) => {
+    (habitDates[l.habit_id] ||= new Set()).add(l.log_date);
+  });
+
+  const hasCode = (cycle.standards?.length || cycle.identity_statement) ? true : false;
+
   body.innerHTML = `
     <div class="card" style="margin-bottom:16px;background:var(--accent-soft);border-color:transparent;">
-      <div style="font-style:italic;">"${escapeHtml(quoteOfDay(state.selectedDate))}"</div>
+      <div style="font-style:italic;">"${escapeHtml(quoteOfDay(state.selectedDate).t)}"</div>
+      ${quoteOfDay(state.selectedDate).a ? `<div class="faint" style="margin-top:4px;">— ${escapeHtml(quoteOfDay(state.selectedDate).a)}</div>` : ""}
     </div>
+
+    ${
+      hasCode
+        ? `<div class="card" style="margin-bottom:16px;">
+            ${cycle.identity_statement ? `<div class="faint" style="margin-bottom:4px;">KÝM SE STÁVÁM</div><div style="margin-bottom:${cycle.standards?.length ? "10px" : "0"};">${escapeHtml(cycle.identity_statement)}</div>` : ""}
+            ${
+              cycle.standards?.length
+                ? `<div class="faint" style="margin-bottom:4px;">MŮJ KODEX</div>
+                   <ul style="margin:0;padding-left:18px;">${cycle.standards.map((s) => `<li>${escapeHtml(s)}</li>`).join("")}</ul>`
+                : ""
+            }
+          </div>`
+        : ""
+    }
 
     <div class="toolbar" style="margin-bottom:14px;">
       <button class="btn btn-icon" id="sj-prev-day" ${state.selectedDate <= minDate ? "disabled" : ""}>←</button>
       <input type="date" id="sj-date" value="${state.selectedDate}" min="${minDate}" max="${cycle.end_date}" />
       <button class="btn btn-icon" id="sj-next-day" ${state.selectedDate >= maxDate ? "disabled" : ""}>→</button>
       <button class="btn btn-sm" id="sj-today-btn">Dnes</button>
-      <span class="faint" id="sj-save-status" style="margin-left:auto;"></span>
+      ${journalStreak > 0 ? `<span class="pill" style="margin-left:auto;">🔥 ${journalStreak} ${journalStreak === 1 ? "den" : journalStreak < 5 ? "dny" : "dní"} v řadě</span>` : ""}
+      <span class="faint" id="sj-save-status" ${journalStreak > 0 ? "" : 'style="margin-left:auto;"'}></span>
     </div>
+
+    ${
+      isToday && (todayEvents.length || todayTodos.length)
+        ? `<div class="card" style="margin-bottom:16px;display:flex;gap:18px;flex-wrap:wrap;align-items:center;">
+            <div class="faint">DNEŠNÍ REALITA</div>
+            <a href="#/calendar" class="action">📅 ${todayEvents.length} ${todayEvents.length === 1 ? "událost" : "události"} v kalendáři</a>
+            <a href="#/todos" class="action">✅ ${todayTodos.length} nesplněných úkolů na dnes</a>
+          </div>`
+        : ""
+    }
 
     <div class="grid grid-2">
       <div class="card">
@@ -265,18 +395,22 @@ async function renderTodayTab(container, body) {
           .join("")}
         <label style="margin-top:10px;">Dnešní záměr / afirmace</label>
         <textarea id="sj-intention" rows="2" placeholder="Dnes se rozhoduji…">${escapeHtml(e.intention || "")}</textarea>
+        <label style="margin-top:10px;">Jaké překážky dnes čekám a jak na ně zareaguju</label>
+        <textarea id="sj-obstacles" rows="2" placeholder="Stoická příprava předem: co mě dnes může vykolejit a co udělám místo toho…">${escapeHtml(e.obstacles || "")}</textarea>
 
         ${
           state.habits.length
             ? `<label style="margin-top:14px;">Návyky</label>
                <div class="list" id="sj-habits-list">
                  ${state.habits
-                   .map(
-                     (h) => `<label class="list-item ${state.habitLogs[h.id] ? "done" : ""}">
+                   .map((h) => {
+                     const streak = computeStreak(habitDates[h.id] || new Set(), state.selectedDate);
+                     return `<label class="list-item ${state.habitLogs[h.id] ? "done" : ""}">
                        <input type="checkbox" class="sj-habit-check" data-habit="${h.id}" ${state.habitLogs[h.id] ? "checked" : ""} />
                        <div class="grow">${h.icon ? h.icon + " " : ""}${escapeHtml(h.name)}</div>
-                     </label>`
-                   )
+                       ${streak > 0 ? `<span class="faint">🔥 ${streak}</span>` : ""}
+                     </label>`;
+                   })
                    .join("")}
                </div>`
             : `<div class="faint" style="margin-top:14px;">Cyklus zatím nemá žádné sledované návyky (přidáš je v úpravě cyklu).</div>`
@@ -285,9 +419,9 @@ async function renderTodayTab(container, body) {
 
       <div class="card">
         <h3 style="margin-top:0;">🌙 Večer</h3>
-        <label>Co se dnes povedlo</label>
+        <label>Dodržel jsem dnešní plán? Co se povedlo</label>
         <textarea id="sj-wins" rows="2" placeholder="Dnešní výhry…">${escapeHtml(e.wins || "")}</textarea>
-        <label style="margin-top:10px;">Co jsem se naučil / co příště jinak</label>
+        <label style="margin-top:10px;">Co jsem se naučil / co příště jinak (buď k sobě upřímný)</label>
         <textarea id="sj-lessons" rows="2">${escapeHtml(e.lessons || "")}</textarea>
         <label style="margin-top:10px;">Hlavní zaměření na zítra</label>
         <input type="text" id="sj-tomorrow" value="${escapeHtml(e.tomorrow_focus || "")}" />
@@ -315,6 +449,7 @@ async function renderTodayTab(container, body) {
       priorities: [...body.querySelectorAll(".sj-priority")].map((i) => i.value.trim()).filter(Boolean),
       gratitude: [...body.querySelectorAll(".sj-gratitude")].map((i) => i.value.trim()).filter(Boolean),
       intention: body.querySelector("#sj-intention").value.trim() || null,
+      obstacles: body.querySelector("#sj-obstacles").value.trim() || null,
       wins: body.querySelector("#sj-wins").value.trim() || null,
       lessons: body.querySelector("#sj-lessons").value.trim() || null,
       tomorrow_focus: body.querySelector("#sj-tomorrow").value.trim() || null,
@@ -374,6 +509,101 @@ async function renderTodayTab(container, body) {
     state.selectedDate = todayIso();
     renderTodayTab(container, body);
   });
+}
+
+// Týdenní review — styl Full Focus Planneru: jednou týdně se zastavíš,
+// zhodnotíš uplynulý týden (co fungovalo / co ne) a nastavíš tři hlavní
+// cíle na týden příští, místo aby ses spoléhal jen na denní zápisy.
+async function renderWeekTab(container, body) {
+  body.innerHTML = `<div class="center" style="padding:40px;"><div class="spinner"></div></div>`;
+  const cycle = state.cycle;
+  const weekStart = mondayOfWeek(todayIso());
+  const weekEnd = addDaysIso(weekStart, 6);
+
+  let review = null;
+  let entries = [];
+  let logs = [];
+  try {
+    [review, entries, logs] = await Promise.all([
+      JournalWeeklyReviews.getByWeekStart(weekStart),
+      JournalEntries.listByCycle(cycle.id),
+      JournalHabitLogs.listForRange(weekStart, weekEnd),
+    ]);
+  } catch (e) {
+    toastError(e);
+  }
+
+  const weekEntries = entries.filter((x) => x.entry_date >= weekStart && x.entry_date <= weekEnd);
+  const filledDays = weekEntries.filter((x) => x.priorities?.length || x.gratitude?.length || x.intention || x.wins || x.lessons).length;
+  const ratedDays = weekEntries.filter((x) => x.rating);
+  const avgRating = ratedDays.length ? (ratedDays.reduce((s, x) => s + x.rating, 0) / ratedDays.length).toFixed(1) : "–";
+  const habitTotal = state.habits.length * 7;
+  const habitDone = logs.length;
+  const habitPct = habitTotal ? Math.round((habitDone / habitTotal) * 100) : 0;
+
+  const r = review || {};
+  const big3 = r.next_week_big3?.length ? r.next_week_big3 : ["", "", ""];
+
+  body.innerHTML = `
+    <div class="card" style="margin-bottom:16px;">
+      <div class="faint">TENTO TÝDEN</div>
+      <div style="margin:2px 0 10px;font-weight:600;">${fmtDate(weekStart)} – ${fmtDate(weekEnd)}</div>
+      <div class="grid grid-3">
+        <div class="center" style="flex-direction:column;"><b style="font-size:20px;">${filledDays}/7</b><span class="faint">vyplněných dní</span></div>
+        <div class="center" style="flex-direction:column;"><b style="font-size:20px;">${avgRating}</b><span class="faint">průměrné hodnocení</span></div>
+        <div class="center" style="flex-direction:column;"><b style="font-size:20px;">${habitPct}%</b><span class="faint">plnění návyků</span></div>
+      </div>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="card">
+        <h3 style="margin-top:0;">Ohlédnutí za týdnem</h3>
+        <label>Co se tento týden povedlo</label>
+        <textarea id="wr-wins" rows="3" placeholder="Vítězství, malá i velká…">${escapeHtml(r.wins || "")}</textarea>
+        <label style="margin-top:10px;">Co nefungovalo / na čem zapracovat</label>
+        <textarea id="wr-improve" rows="3">${escapeHtml(r.improve || "")}</textarea>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">Co dál</h3>
+        <label>Co si nechat (funguje to)</label>
+        <textarea id="wr-keep" rows="2">${escapeHtml(r.keep_actions || "")}</textarea>
+        <label style="margin-top:10px;">Co přestat dělat (brzdí tě to)</label>
+        <textarea id="wr-stop" rows="2">${escapeHtml(r.stop_actions || "")}</textarea>
+        <label style="margin-top:10px;">3 hlavní cíle na příští týden</label>
+        ${big3
+          .slice(0, 3)
+          .map((g, i) => `<input type="text" class="wr-big3" data-i="${i}" placeholder="Cíl ${i + 1}" value="${escapeHtml(g)}" style="margin-bottom:6px;" />`)
+          .join("")}
+      </div>
+    </div>
+    <div class="faint" id="wr-save-status" style="margin-top:10px;"></div>
+  `;
+
+  const statusEl = body.querySelector("#wr-save-status");
+  let saveTimer = null;
+  function scheduleSave() {
+    statusEl.textContent = "Ukládám…";
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(save, 500);
+  }
+  async function save() {
+    const fields = {
+      cycle_id: cycle.id,
+      wins: body.querySelector("#wr-wins").value.trim() || null,
+      improve: body.querySelector("#wr-improve").value.trim() || null,
+      keep_actions: body.querySelector("#wr-keep").value.trim() || null,
+      stop_actions: body.querySelector("#wr-stop").value.trim() || null,
+      next_week_big3: [...body.querySelectorAll(".wr-big3")].map((i) => i.value.trim()).filter(Boolean),
+    };
+    try {
+      await JournalWeeklyReviews.upsert(weekStart, fields);
+      statusEl.textContent = "Uloženo ✓";
+    } catch (err) {
+      statusEl.textContent = "";
+      toastError(err);
+    }
+  }
+  body.querySelectorAll("textarea, .wr-big3").forEach((inp) => inp.addEventListener("input", scheduleSave));
 }
 
 async function renderOverviewTab(container, body) {
@@ -508,6 +738,7 @@ async function renderHistoryTab(container, body) {
 async function openCycleModal(container, cycle) {
   const isNew = !cycle;
   let goals = cycle?.goals?.length ? [...cycle.goals] : ["", "", ""];
+  let standards = cycle?.standards?.length ? [...cycle.standards] : ["", "", ""];
   let habits = [];
   if (!isNew) {
     try {
@@ -527,10 +758,17 @@ async function openCycleModal(container, cycle) {
        <div class="field"><label>Konec (auto, 90 dní)</label><input type="date" id="cyc-end" value="${cycle?.end_date || defaultEnd}" disabled /></div>
      </div>
      <div class="field"><label>Zaměření / vize cyklu</label><textarea id="cyc-theme" rows="2" placeholder="Na co se v těchto 90 dnech soustředím…">${escapeHtml(cycle?.theme || "")}</textarea></div>
+     <div class="field"><label>Kým se chci stát (identita, ne jen výsledek)</label><textarea id="cyc-identity" rows="2" placeholder="např. Jsem člověk, který dodržuje sliby sám sobě…">${escapeHtml(cycle?.identity_statement || "")}</textarea></div>
      <div class="field">
        <label>Cíle cyklu</label>
        <div id="cyc-goals">
          ${goals.map((g, i) => `<input type="text" class="cyc-goal" data-i="${i}" value="${escapeHtml(g)}" placeholder="Cíl ${i + 1}" style="margin-bottom:6px;" />`).join("")}
+       </div>
+     </div>
+     <div class="field">
+       <label>Můj kodex (osobní pravidla, kterých se nevzdávám)</label>
+       <div id="cyc-standards">
+         ${standards.map((st, i) => `<input type="text" class="cyc-standard" data-i="${i}" value="${escapeHtml(st)}" placeholder="Pravidlo ${i + 1}, např. Nevynechám ranní trénink" style="margin-bottom:6px;" />`).join("")}
        </div>
      </div>
      <div class="field">
@@ -573,7 +811,9 @@ async function openCycleModal(container, cycle) {
     const startDate = modalEl.querySelector("#cyc-start").value;
     const endDate = modalEl.querySelector("#cyc-end").value || addDaysIso(startDate, 89);
     const theme = modalEl.querySelector("#cyc-theme").value.trim() || null;
+    const identityStatement = modalEl.querySelector("#cyc-identity").value.trim() || null;
     const goalsVal = [...modalEl.querySelectorAll(".cyc-goal")].map((i) => i.value.trim()).filter(Boolean);
+    const standardsVal = [...modalEl.querySelectorAll(".cyc-standard")].map((i) => i.value.trim()).filter(Boolean);
     const habitNames = [...modalEl.querySelectorAll(".cyc-habit-name")];
     const habitIcons = [...modalEl.querySelectorAll(".cyc-habit-icon")];
 
@@ -587,11 +827,13 @@ async function openCycleModal(container, cycle) {
           start_date: startDate,
           end_date: endDate,
           theme,
+          identity_statement: identityStatement,
           goals: goalsVal,
+          standards: standardsVal,
           status: "active",
         });
       } else {
-        savedCycle = await JournalCycles.update(cycle.id, { title, theme, goals: goalsVal });
+        savedCycle = await JournalCycles.update(cycle.id, { title, theme, identity_statement: identityStatement, goals: goalsVal, standards: standardsVal });
       }
 
       if (isNew) {

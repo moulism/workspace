@@ -164,10 +164,19 @@ function currentRoute() {
   return location.hash.replace("#/", "") || null;
 }
 
-let navigating = false;
+// Setting location.hash below also fires the window's own "hashchange"
+// event asynchronously, which is wired to call navigate() again — without
+// this guard, every nav click ran the whole view render twice back to
+// back. That race was the cause of finance entries (and anything else
+// submitted from a view with an `await` before its form listeners are
+// attached) getting saved twice per submit: the first render's listener
+// ended up attached to the second render's DOM by the time it resumed.
+let lastRoute = null;
 
 async function navigate(route) {
   if (!ROUTES[route]) route = "dashboard";
+  if (route === lastRoute) return;
+  lastRoute = route;
   location.hash = "#/" + route;
 
   document.querySelectorAll(".nav-item[data-route], .bn-item[data-route]").forEach((n) => {

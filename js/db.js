@@ -642,3 +642,30 @@ export const JournalHabitLogs = {
     return data;
   },
 };
+
+export const JournalWeeklyReviews = {
+  async getByWeekStart(weekStart) {
+    const { data, error } = await supabase.from("sj_weekly_reviews").select("*").eq("week_start", weekStart).maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+  async listByCycle(cycleId) {
+    const { data, error } = await supabase
+      .from("sj_weekly_reviews")
+      .select("*")
+      .eq("cycle_id", cycleId)
+      .order("week_start", { ascending: false });
+    if (error) throw error;
+    return data;
+  },
+  async upsert(weekStart, fields) {
+    const user_id = await uid();
+    const { data, error } = await supabase
+      .from("sj_weekly_reviews")
+      .upsert({ user_id, week_start: weekStart, ...fields }, { onConflict: "user_id,week_start" })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+};
