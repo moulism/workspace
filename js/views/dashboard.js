@@ -2,6 +2,7 @@ import { Events, Todos, Goals, Folders } from "../db.js";
 import { escapeHtml, fmtTime, fmtDate, todayIso, CATEGORY_COLORS } from "../ui.js";
 import { toastError } from "../toast.js";
 import { hasGoogle, Gmail } from "../google.js";
+import { expandRecurrence } from "../recurrence.js";
 
 export async function render(container) {
   container.innerHTML = `
@@ -79,10 +80,20 @@ async function loadTodayEvents(container) {
     start.setHours(0, 0, 0, 0);
     const end = new Date();
     end.setHours(23, 59, 59, 999);
-    const [events, folders] = await Promise.all([
+    // Plain events only cover their own stored start/end — a recurring
+    // event (e.g. a weekly class schedule) is stored once as a "master"
+    // row and its actual occurrences only exist virtually, expanded on the
+    // fly for whatever range we're looking at. Without this, anything
+    // recurring only ever showed up on its original creation date.
+    const [plain, recurringMasters, folders] = await Promise.all([
       Events.listRange(start.toISOString(), end.toISOString()),
+      Events.listAllRecurring(),
       Folders.list().catch(() => []),
     ]);
+    const nonRecurring = plain.filter((e) => !e.recurrence || !e.recurrence.freq || e.recurrence.freq === "none");
+    const expanded = recurringMasters.flatMap((m) => expandRecurrence(m, start, end));
+    const events = [...nonRecurring, ...expanded].sort((a, b) => (a.start_at || "").localeCompare(b.start_at || ""));
+
     const folderColor = Object.fromEntries((folders || []).filter((f) => f.color).map((f) => [f.id, f.color]));
     if (!events.length) {
       box.innerHTML = `<div class="faint">Dnes žádné události.</div>`;

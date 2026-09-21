@@ -1,6 +1,7 @@
 import { JournalCycles, JournalHabits, JournalEntries, JournalHabitLogs, JournalWeeklyReviews, Events, Todos } from "../db.js";
 import { escapeHtml, openModal, confirmDialog, todayIso, fmtDate } from "../ui.js";
 import { toast, toastError } from "../toast.js";
+import { expandRecurrence } from "../recurrence.js";
 
 // Citáty ke kázni, návykům a sebekázni — směs ověřených citátů (stoikové,
 // historické osobnosti) s uvedeným autorem a několika původními myšlenkami
@@ -310,16 +311,23 @@ async function renderTodayTab(container, body) {
     if (isToday) {
       tasks.push(
         Events.listRange(`${state.selectedDate}T00:00:00`, `${state.selectedDate}T23:59:59`).catch(() => []),
+        Events.listAllRecurring().catch(() => []),
         Todos.list({ done: false, from: state.selectedDate, to: state.selectedDate }).catch(() => [])
       );
     }
     const results = await Promise.all(tasks);
-    const [entry, logs, entriesForCycle, logsForCycle, eventsToday, todosToday] = results;
+    const [entry, logs, entriesForCycle, logsForCycle, eventsToday, recurringMasters, todosToday] = results;
     state.entry = entry;
     state.habitLogs = Object.fromEntries(logs.map((l) => [l.habit_id, true]));
     allEntries = entriesForCycle || [];
     allLogs = logsForCycle || [];
-    todayEvents = eventsToday || [];
+    if (isToday) {
+      const dayStart = new Date(`${state.selectedDate}T00:00:00`);
+      const dayEnd = new Date(`${state.selectedDate}T23:59:59`);
+      const plainToday = (eventsToday || []).filter((x) => !x.recurrence || !x.recurrence.freq || x.recurrence.freq === "none");
+      const expandedToday = (recurringMasters || []).flatMap((m) => expandRecurrence(m, dayStart, dayEnd));
+      todayEvents = [...plainToday, ...expandedToday];
+    }
     todayTodos = todosToday || [];
   } catch (e) {
     toastError(e);
