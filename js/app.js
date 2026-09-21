@@ -275,15 +275,36 @@ document.getElementById("signout-btn").addEventListener("click", async () => {
   await signOut();
 });
 
+// Boot splash: shown on every fresh load (it's static markup in index.html).
+// Hidden once auth has resolved AND a minimum display time has passed, so
+// it reads as an intentional boot sequence rather than a flash. The
+// unconditional 4s fallback is a hard safety net — if anything above ever
+// throws before resolving, the splash must never get stuck on screen.
+let bootResolved = false;
+function hideBootSplash() {
+  const el = document.getElementById("boot-splash");
+  if (el) el.classList.add("boot-hide");
+}
+function markBootResolved() {
+  if (bootResolved) return;
+  bootResolved = true;
+  setTimeout(hideBootSplash, 1500);
+}
+setTimeout(hideBootSplash, 4000);
+
 onAuthChange((event, session) => {
   if (session) renderApp(session);
   else renderAuthScreen();
+  markBootResolved();
 });
 
-getSession().then((session) => {
-  if (session) renderApp(session);
-  else renderAuthScreen();
-});
+getSession()
+  .then((session) => {
+    if (session) renderApp(session);
+    else renderAuthScreen();
+  })
+  .catch(() => renderAuthScreen())
+  .finally(markBootResolved);
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

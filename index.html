@@ -4,10 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <title>Workspace</title>
-  <meta name="theme-color" content="#4f46e5" />
+  <meta name="theme-color" content="#05080c" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap" />
   <link rel="stylesheet" href="css/styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   <script>
@@ -23,6 +26,20 @@
   </script>
 </head>
 <body>
+  <div id="boot-splash">
+    <div class="boot-grid"></div>
+    <div class="boot-box">
+      <div class="boot-emblem">🦇</div>
+      <div class="boot-lines">
+        <div class="boot-line" style="animation-delay:.05s;">&gt; INITIALIZING SECURE ENVIRONMENT…</div>
+        <div class="boot-line" style="animation-delay:.35s;">&gt; LOADING MODULES: FINANCE · CALENDAR · JOURNAL · NOTES…</div>
+        <div class="boot-line" style="animation-delay:.65s;">&gt; AUTHENTICATING…</div>
+        <div class="boot-line boot-welcome" style="animation-delay:1.05s;">WELCOME, MASTER M</div>
+      </div>
+      <div class="boot-bar"><div class="boot-bar-fill"></div></div>
+    </div>
+  </div>
+
   <div id="auth-root"></div>
 
   <div id="app" class="hidden">

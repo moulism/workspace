@@ -1,5 +1,44 @@
-/* ===================== Design tokens ===================== */
+/* ===================== Design tokens =====================
+   "Batcomputer" theme — dark, glowing, luxury-tech is the DEFAULT look
+   of the whole app now (not gated behind OS preference). Explicit light
+   mode is kept as an opt-in override — mainly so Notes can be read on a
+   white background (inserted images show up correctly against white). */
 :root {
+  --bg: #05080c;
+  --bg-elevated: #0d1420;
+  --bg-hover: #16202f;
+  --border: #1c2b3a;
+  --text: #e7eef5;
+  --text-muted: #93a3b5;
+  --text-faint: #5c6c7d;
+  --accent: #22d3ee;
+  --accent-contrast: #04141a;
+  --accent-soft: #0c2530;
+  --accent-2: #d4af37;
+  --danger: #ff5a5f;
+  --success: #22e0a0;
+  --warning: #d4af37;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 28px rgba(0,0,0,.5);
+  --glow: 0 0 0 1px rgba(34,211,238,.18), 0 0 18px rgba(34,211,238,.14);
+  --sidebar-w: 240px;
+  --sidebar-w-collapsed: 74px;
+  --bottom-nav-h: 60px;
+  --ease-spring: cubic-bezier(.2, .9, .25, 1.2);
+  --font-display: "Rajdhani", -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "Share Tech Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --cat-school: #22d3ee;
+  --cat-work: #2dd4bf;
+  --cat-gym: #ff5a5f;
+  --cat-personal: #d4af37;
+  --cat-other: #93a3b5;
+}
+
+/* Explicit light mode (toggle) — kept close to the original clean theme,
+   used mainly for reading/editing notes on a white background. */
+:root[data-theme="light"] {
   --bg: #f7f7f5;
   --bg-elevated: #ffffff;
   --bg-hover: #efeeec;
@@ -10,68 +49,57 @@
   --accent: #4f46e5;
   --accent-contrast: #ffffff;
   --accent-soft: #eef0ff;
+  --accent-2: #c98a1f;
   --danger: #dc4c3f;
   --success: #2f9e5b;
   --warning: #c98a1f;
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
   --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.06);
-  --sidebar-w: 240px;
-  --sidebar-w-collapsed: 74px;
-  --bottom-nav-h: 60px;
-  --ease-spring: cubic-bezier(.2, .9, .25, 1.2);
-  --cat-school: #4f46e5;
-  --cat-work: #0f766e;
-  --cat-gym: #dc4c3f;
-  --cat-personal: #c98a1f;
-  --cat-other: #6b6a68;
+  --glow: none;
 }
 
+/* Explicit dark stays identical to the (now dark-by-default) base — kept
+   so an old "dark" choice stored on a device still resolves correctly. */
 :root[data-theme="dark"] {
-  --bg: #17181a;
-  --bg-elevated: #1f2023;
-  --bg-hover: #292a2e;
-  --border: #313236;
-  --text: #eceded;
-  --text-muted: #a3a3a6;
-  --text-faint: #75767a;
-  --accent: #8583ff;
-  --accent-contrast: #14141a;
-  --accent-soft: #23243a;
-  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #17181a;
-    --bg-elevated: #1f2023;
-    --bg-hover: #292a2e;
-    --border: #313236;
-    --text: #eceded;
-    --text-muted: #a3a3a6;
-    --text-faint: #75767a;
-    --accent: #8583ff;
-    --accent-contrast: #14141a;
-    --accent-soft: #23243a;
-    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
-  }
+  --bg: #05080c;
+  --bg-elevated: #0d1420;
+  --bg-hover: #16202f;
+  --border: #1c2b3a;
+  --text: #e7eef5;
+  --text-muted: #93a3b5;
+  --text-faint: #5c6c7d;
+  --accent: #22d3ee;
+  --accent-contrast: #04141a;
+  --accent-soft: #0c2530;
+  --accent-2: #d4af37;
+  --danger: #ff5a5f;
+  --success: #22e0a0;
+  --warning: #d4af37;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 28px rgba(0,0,0,.5);
+  --glow: 0 0 0 1px rgba(34,211,238,.18), 0 0 18px rgba(34,211,238,.14);
 }
 
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 body {
   margin: 0;
-  background: var(--bg);
+  background:
+    radial-gradient(1100px 700px at 14% -10%, rgba(34,211,238,.07), transparent 60%),
+    radial-gradient(900px 600px at 100% 0%, rgba(212,175,55,.05), transparent 55%),
+    var(--bg);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
   font-size: 14.5px;
   line-height: 1.5;
 }
+:root[data-theme="light"] body { background: var(--bg); }
 a { color: inherit; }
 button, input, textarea, select { font-family: inherit; font-size: inherit; color: inherit; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+h1, h2, h3, .brand-text, .nav-group-label, .btn-primary, .topbar h1 {
+  font-family: var(--font-display);
+  letter-spacing: .01em;
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -95,6 +123,7 @@ button, input, textarea, select { font-family: inherit; font-size: inherit; colo
   flex-shrink: 0;
   background: var(--bg-elevated);
   border-right: 1px solid var(--border);
+  box-shadow: 1px 0 0 rgba(34,211,238,.06);
   display: flex;
   flex-direction: column;
   padding: 14px 10px;
@@ -115,8 +144,9 @@ html[data-sidebar="collapsed"] .sidebar { width: var(--sidebar-w-collapsed); }
 }
 .sidebar-brand .logo {
   width: 28px; height: 28px; border-radius: 9px;
-  overflow: hidden; flex-shrink: 0; box-shadow: var(--shadow);
+  overflow: hidden; flex-shrink: 0; box-shadow: var(--glow), var(--shadow);
 }
+.sidebar-brand .brand-text { font-family: var(--font-display); font-weight: 700; letter-spacing: .03em; }
 .sidebar-brand .logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .sidebar-brand .brand-text { flex: 1; min-width: 0; }
 .sidebar-collapse-btn {
@@ -166,8 +196,9 @@ html[data-sidebar="collapsed"] .user-chip { justify-content: center; }
 }
 .nav-item:hover .ic { transform: scale(1.08); }
 .nav-item:hover { color: var(--text); }
-.nav-item.active { color: var(--accent); font-weight: 600; }
-.nav-item.active .ic { background: var(--bg-elevated); box-shadow: var(--shadow); }
+.nav-item.active { color: var(--accent); font-weight: 700; }
+.nav-item.active .ic { background: var(--bg-elevated); box-shadow: var(--glow), var(--shadow); }
+:root[data-theme="light"] .nav-item.active .ic { box-shadow: var(--shadow); }
 
 .sidebar-footer {
   margin-top: auto;
@@ -275,8 +306,11 @@ html[data-sidebar="collapsed"] .user-chip { justify-content: center; }
 .btn:active { transform: scale(.96); }
 .btn-primary {
   background: var(--accent); border-color: var(--accent); color: var(--accent-contrast);
+  box-shadow: 0 0 14px rgba(34,211,238,.25);
+  font-weight: 700;
 }
-.btn-primary:hover { filter: brightness(1.06); }
+:root[data-theme="light"] .btn-primary { box-shadow: none; }
+.btn-primary:hover { filter: brightness(1.1); box-shadow: 0 0 20px rgba(34,211,238,.4); }
 .btn-danger { color: var(--danger); border-color: var(--danger); background: transparent; }
 .btn-danger:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
 .btn-ghost { border-color: transparent; background: transparent; }
@@ -293,7 +327,8 @@ input[type=search], input[type=email], input[type=password], textarea, select {
   transition: border-color .12s ease, box-shadow .12s ease;
 }
 textarea { resize: vertical; }
-input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; box-shadow: 0 0 0 4px rgba(34,211,238,.12); }
+:root[data-theme="light"] input:focus, :root[data-theme="light"] textarea:focus, :root[data-theme="light"] select:focus { box-shadow: none; }
 label { font-size: 12.5px; color: var(--text-muted); display: block; margin-bottom: 4px; }
 .field { margin-bottom: 12px; }
 .row { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -302,10 +337,23 @@ label { font-size: 12.5px; color: var(--text-muted); display: block; margin-bott
 
 /* ===================== Cards / layout helpers ===================== */
 .card {
+  position: relative;
   background: var(--bg-elevated); border: 1px solid var(--border);
   border-radius: var(--radius-md); padding: 16px;
-  transition: box-shadow .15s ease, transform .15s ease;
+  box-shadow: var(--glow);
+  transition: box-shadow .15s ease, transform .15s ease, border-color .15s ease;
 }
+/* HUD corner brackets — the small L-shaped marks that read as "tech panel"
+   rather than a plain rounded rectangle. Skipped in light mode, where the
+   plain card look stays (matters most for Notes on a white background). */
+.card::before, .card::after {
+  content: ""; position: absolute; width: 10px; height: 10px;
+  border: 1.5px solid var(--accent); opacity: .55; pointer-events: none;
+}
+.card::before { top: -1px; left: -1px; border-right: none; border-bottom: none; border-top-left-radius: 4px; }
+.card::after { bottom: -1px; right: -1px; border-left: none; border-top: none; border-bottom-right-radius: 4px; }
+:root[data-theme="light"] .card::before, :root[data-theme="light"] .card::after { display: none; }
+.card:hover { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
 .grid { display: grid; gap: 14px; }
 .grid-2 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
 .grid-3 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
@@ -323,7 +371,7 @@ label { font-size: 12.5px; color: var(--text-muted); display: block; margin-bott
 .list > *:nth-child(8), .grid > *:nth-child(8) { animation-delay: .21s; }
 .list > *:nth-child(n+9), .grid > *:nth-child(n+9) { animation-delay: .24s; }
 
-.note-card:hover, .card[data-id]:hover { transform: translateY(-2px); box-shadow: var(--shadow); cursor: pointer; }
+.note-card:hover, .card[data-id]:hover { transform: translateY(-2px); box-shadow: var(--glow), var(--shadow); cursor: pointer; }
 
 .section-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -610,9 +658,15 @@ table.fin-table .action { cursor: pointer; color: var(--accent); font-size: 12px
 
 .auth-screen {
   height: 100vh; height: 100dvh; display: flex; align-items: center; justify-content: center;
-  flex-direction: column; gap: 18px; background: var(--bg);
+  flex-direction: column; gap: 18px;
+  background: radial-gradient(900px 600px at 50% 20%, rgba(34,211,238,.08), transparent 60%), var(--bg);
 }
-.auth-card { background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 34px; width: 100%; max-width: 380px; text-align: center; box-shadow: var(--shadow); animation: modalIn .3s var(--ease-spring); }
+.auth-card {
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 34px; width: 100%; max-width: 380px; text-align: center;
+  box-shadow: var(--glow), var(--shadow); animation: modalIn .3s var(--ease-spring);
+}
+.auth-card h1 { font-family: var(--font-display); }
 .auth-card h1 { font-size: 20px; margin: 4px 0 4px; }
 .auth-card p { color: var(--text-muted); font-size: 13.5px; margin-bottom: 20px; }
 .auth-divider { display: flex; align-items: center; gap: 10px; margin: 16px 0; color: var(--text-faint); font-size: 12px; }
@@ -809,3 +863,40 @@ body.note-page-open { overflow: hidden; }
   cursor: pointer; width: 100%;
 }
 .size-swatch:hover { background: var(--bg-hover); }
+
+/* ===================== Boot / splash screen ===================== */
+#boot-splash {
+  position: fixed; inset: 0; z-index: 1000;
+  background: radial-gradient(1200px 800px at 50% 30%, #0c1622 0%, #05080c 70%);
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity .5s ease, visibility .5s ease;
+}
+#boot-splash.boot-hide { opacity: 0; visibility: hidden; pointer-events: none; }
+.boot-grid {
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(34,211,238,.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34,211,238,.06) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: radial-gradient(700px 500px at 50% 40%, black, transparent 75%);
+  animation: bootGridPan 16s linear infinite;
+}
+@keyframes bootGridPan { from { background-position: 0 0, 0 0; } to { background-position: 340px 0, 0 340px; } }
+.boot-box { position: relative; text-align: center; padding: 20px; max-width: 92vw; }
+.boot-emblem {
+  font-size: 46px; margin-bottom: 14px;
+  filter: drop-shadow(0 0 18px rgba(34,211,238,.55));
+  animation: bootPulse 2.2s ease-in-out infinite;
+}
+@keyframes bootPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+.boot-lines { font-family: var(--font-mono); font-size: 12.5px; color: #7fe3f5; min-height: 90px; }
+.boot-line { opacity: 0; letter-spacing: .02em; margin-bottom: 6px; animation: bootLineIn .4s ease forwards; }
+@keyframes bootLineIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.boot-welcome {
+  font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: .08em;
+  color: #fff; margin-top: 10px;
+  text-shadow: 0 0 16px rgba(34,211,238,.6), 0 0 32px rgba(212,175,55,.25);
+}
+.boot-bar { width: 220px; height: 2px; background: rgba(34,211,238,.15); margin: 18px auto 0; border-radius: 2px; overflow: hidden; }
+.boot-bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #22d3ee, #d4af37); animation: bootBarFill 1.4s ease forwards; }
+@keyframes bootBarFill { from { width: 0%; } to { width: 100%; } }
