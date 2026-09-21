@@ -83,6 +83,7 @@ html, body { height: 100%; }
 body {
   margin: 0;
   background:
+    url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHdpZHRoPScxNDAnIGhlaWdodD0nMTQwJz48ZmlsdGVyIGlkPSduJz48ZmVUdXJidWxlbmNlIHR5cGU9J2ZyYWN0YWxOb2lzZScgYmFzZUZyZXF1ZW5jeT0nMC44NScgbnVtT2N0YXZlcz0nMicgc3RpdGNoVGlsZXM9J3N0aXRjaCcvPjxmZUNvbG9yTWF0cml4IHR5cGU9J21hdHJpeCcgdmFsdWVzPScwIDAgMCAwIDEgIDAgMCAwIDAgMSAgMCAwIDAgMCAxICAwIDAgMCAwLjAyNSAwJy8+PC9maWx0ZXI+PHJlY3Qgd2lkdGg9JzEwMCUnIGhlaWdodD0nMTAwJScgZmlsdGVyPSd1cmwoI24pJy8+PC9zdmc+"),
     repeating-radial-gradient(circle at 88% 6%, rgba(34,211,238,.05) 0, rgba(34,211,238,.05) 1px, transparent 1px, transparent 52px),
     radial-gradient(1100px 700px at 14% -10%, rgba(34,211,238,.07), transparent 60%),
     radial-gradient(900px 600px at 100% 0%, rgba(212,175,55,.05), transparent 55%),
@@ -122,7 +123,9 @@ h1, h2, h3, .brand-text, .nav-group-label, .btn-primary, .topbar h1 {
 .sidebar {
   width: var(--sidebar-w);
   flex-shrink: 0;
-  background: var(--bg-elevated);
+  background:
+    repeating-linear-gradient(115deg, rgba(255,255,255,.012) 0px, rgba(255,255,255,.012) 1px, transparent 1px, transparent 5px),
+    var(--bg-elevated);
   border-right: 1px solid var(--border);
   box-shadow: 1px 0 0 rgba(34,211,238,.06);
   display: flex;
@@ -186,6 +189,12 @@ html[data-sidebar="collapsed"] .nav-item { justify-content: center; }
 html[data-sidebar="collapsed"] .user-chip { justify-content: center; }
 
 .sidebar-nav { position: relative; flex: 1; }
+.sidebar-nav::before {
+  content: ""; position: absolute; left: 15px; top: 4px; bottom: 4px; width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(34,211,238,.3) 8%, rgba(34,211,238,.3) 92%, transparent);
+  z-index: 0; pointer-events: none;
+}
+:root[data-theme="light"] .sidebar-nav::before { display: none; }
 .nav-highlight {
   position: absolute; left: 0; right: 0; top: 0; height: 0; opacity: 0;
   background: var(--accent-soft); border-radius: var(--radius-sm);
@@ -383,11 +392,11 @@ html[data-sidebar="collapsed"] .user-chip { justify-content: center; }
 .btn:active { transform: scale(.96); }
 .btn-primary {
   background: var(--accent); border-color: var(--accent); color: var(--accent-contrast);
-  box-shadow: 0 0 14px rgba(34,211,238,.25);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 0 14px rgba(34,211,238,.25);
   font-weight: 700;
   clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
 }
-:root[data-theme="light"] .btn-primary { clip-path: none; }
+:root[data-theme="light"] .btn-primary { clip-path: none; box-shadow: none; }
 :root[data-theme="light"] .btn-primary { box-shadow: none; }
 .btn-primary:hover { filter: brightness(1.1); box-shadow: 0 0 20px rgba(34,211,238,.4); }
 .btn-danger { color: var(--danger); border-color: var(--danger); background: transparent; }
@@ -417,12 +426,16 @@ label { font-size: 12.5px; color: var(--text-muted); display: block; margin-bott
 /* ===================== Cards / layout helpers ===================== */
 .card {
   position: relative;
-  background: var(--bg-elevated); border: 1px solid var(--border);
+  background:
+    radial-gradient(240px circle at var(--spot-x, 50%) var(--spot-y, 50%), rgba(34,211,238,.09), transparent 60%),
+    var(--bg-elevated);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md); padding: 16px;
-  box-shadow: inset 0 1px 0 0 rgba(34,211,238,.28), var(--glow);
+  box-shadow: inset 0 1px 0 0 rgba(34,211,238,.28), inset 0 -14px 22px -16px rgba(0,0,0,.55), var(--glow);
   transition: box-shadow .15s ease, transform .15s ease, border-color .15s ease;
+  animation: itemFadeIn .35s ease both;
 }
-:root[data-theme="light"] .card { box-shadow: var(--shadow); }
+:root[data-theme="light"] .card { box-shadow: var(--shadow); background: var(--bg-elevated); }
 /* HUD corner brackets — the small L-shaped marks that read as "tech panel"
    rather than a plain rounded rectangle. Skipped in light mode, where the
    plain card look stays (matters most for Notes on a white background). */

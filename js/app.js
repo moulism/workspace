@@ -312,6 +312,32 @@ function markBootResolved() {
 }
 setTimeout(hideBootSplash, 5500);
 
+// Cursor-follow "spotlight" on whatever .card is under the pointer — a
+// soft glow that tracks the mouse, driven by --spot-x/--spot-y (read by
+// the .card background in styles.css). Delegated on document + rAF
+// throttled so it costs nothing when the pointer isn't over a card, and
+// touches every card in every view without any per-view code.
+let spotTicking = false;
+document.addEventListener(
+  "pointermove",
+  (e) => {
+    if (spotTicking) return;
+    spotTicking = true;
+    const x = e.clientX;
+    const y = e.clientY;
+    const target = e.target;
+    requestAnimationFrame(() => {
+      spotTicking = false;
+      const card = target?.closest?.(".card");
+      if (!card) return;
+      const r = card.getBoundingClientRect();
+      card.style.setProperty("--spot-x", `${((x - r.left) / r.width) * 100}%`);
+      card.style.setProperty("--spot-y", `${((y - r.top) / r.height) * 100}%`);
+    });
+  },
+  { passive: true }
+);
+
 // Live HUD clock (sidebar status rail + topbar) — small touch, but it's
 // what makes the console feel alive rather than a static skin.
 function updateHudClock() {
