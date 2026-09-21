@@ -278,19 +278,43 @@ document.getElementById("signout-btn").addEventListener("click", async () => {
 // Boot splash: shown on every fresh load (it's static markup in index.html).
 // Hidden once auth has resolved AND a minimum display time has passed, so
 // it reads as an intentional boot sequence rather than a flash. The
-// unconditional 4s fallback is a hard safety net — if anything above ever
-// throws before resolving, the splash must never get stuck on screen.
+// unconditional 5.5s fallback is a hard safety net — if anything above
+// ever throws before resolving, the splash must never get stuck on screen.
+// Dismissal itself is a short "pulled into the system" warp (see CSS:
+// .boot-warp / .boot-warp-flash) rather than a plain fade, then the
+// overlay is removed once the warp animation has finished.
 let bootResolved = false;
 function hideBootSplash() {
   const el = document.getElementById("boot-splash");
-  if (el) el.classList.add("boot-hide");
+  if (!el || el.classList.contains("boot-warp-flash")) return;
+  const box = el.querySelector(".boot-box");
+  const grid = el.querySelector(".boot-grid");
+  if (box) box.classList.add("boot-warp");
+  if (grid) grid.classList.add("boot-warp");
+  el.classList.add("boot-warp-flash");
+  setTimeout(() => el.classList.add("boot-hide"), 650);
 }
 function markBootResolved() {
   if (bootResolved) return;
   bootResolved = true;
-  setTimeout(hideBootSplash, 1500);
+  // Give "WELCOME, MASTER M" (appears at ~1.05s) real time on screen
+  // before the warp-out starts — long enough to actually read it.
+  setTimeout(hideBootSplash, 2600);
 }
-setTimeout(hideBootSplash, 4000);
+setTimeout(hideBootSplash, 5500);
+
+// Live HUD clock (sidebar status rail + topbar) — small touch, but it's
+// what makes the console feel alive rather than a static skin.
+function updateHudClock() {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  const ss = String(now.getSeconds()).padStart(2, "0");
+  const text = `${hh}:${mm}:${ss}`;
+  document.querySelectorAll(".hud-clock").forEach((el) => { el.textContent = text; });
+}
+updateHudClock();
+setInterval(updateHudClock, 1000);
 
 onAuthChange((event, session) => {
   if (session) renderApp(session);
