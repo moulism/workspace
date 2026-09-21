@@ -1,4 +1,4 @@
-import { openImageZoomViewer } from "./ui.js";
+import { openImageZoomViewer, openModal } from "./ui.js";
 
 const TOOLS = [
   { cmd: "bold", label: "<b>B</b>", title: "Tučně (Ctrl+B)" },
@@ -16,8 +16,79 @@ const TOOLS = [
   { cmd: "formatBlock", value: "blockquote", label: "❝", title: "Citace" },
   { custom: "divider", label: "―", title: "Oddělovač" },
   { sep: true },
+  { cmd: "justifyLeft", label: "L", title: "Zarovnat vlevo" },
+  { cmd: "justifyCenter", label: "C", title: "Na střed" },
+  { cmd: "justifyRight", label: "R", title: "Zarovnat vpravo" },
+  { cmd: "justifyFull", label: "J", title: "Do bloku" },
+  { sep: true },
+  { custom: "link", label: "🔗", title: "Vložit odkaz" },
+  { cmd: "unlink", label: "🔗⌫", title: "Odebrat odkaz" },
+  { sep: true },
   { cmd: "removeFormat", label: "⌫", title: "Vymazat formátování" },
 ];
+
+const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 40];
+
+// execCommand("fontSize") only understands the legacy 1–7 scale and produces
+// <font size="N"> tags — we use size 7 as a marker, then swap it for a real
+// <span style="font-size:Npx"> so the result is normal, portable HTML.
+function applyFontSize(content, px) {
+  content.focus();
+  document.execCommand("fontSize", false, "7");
+  content.querySelectorAll('font[size="7"]').forEach((el) => {
+    const span = document.createElement("span");
+    span.style.fontSize = px + "px";
+    while (el.firstChild) span.appendChild(el.firstChild);
+    el.replaceWith(span);
+  });
+}
+
+function insertLink(content) {
+  const sel = window.getSelection();
+  if (!sel.rangeCount || sel.isCollapsed || !content.contains(sel.anchorNode)) {
+    return;
+  }
+  const savedRange = sel.getRangeAt(0).cloneRange();
+  openModal(
+    `<div class="modal-header"><h3>Vložit odkaz</h3></div>
+     <div class="field"><label>URL</label><input type="text" id="rt-link-url" placeholder="https://…" /></div>
+     <div class="modal-actions">
+       <button class="btn" type="button" data-close>Zrušit</button>
+       <button class="btn btn-primary" type="button" id="rt-link-save">Vložit</button>
+     </div>`,
+    {
+      onMount(modalEl, close) {
+        const input = modalEl.querySelector("#rt-link-url");
+        input.focus();
+        const save = () => {
+          let url = input.value.trim();
+          if (!url) {
+            close();
+            return;
+          }
+          if (!/^[a-z][a-z0-9+.-]*:/i.test(url)) url = "https://" + url;
+          const s2 = window.getSelection();
+          s2.removeAllRanges();
+          s2.addRange(savedRange);
+          document.execCommand("createLink", false, url);
+          content.querySelectorAll("a[href]:not([target])").forEach((a) => {
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+          });
+          close();
+          content.focus();
+        };
+        modalEl.querySelector("#rt-link-save").addEventListener("click", save);
+        input.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            save();
+          }
+        });
+      },
+    }
+  );
+}
 
 function insertChecklistItem() {
   document.execCommand(
@@ -53,11 +124,51 @@ export function createEditor(container, initialHtml = "") {
     btn.addEventListener("click", () => {
       if (t.custom === "checklist") insertChecklistItem();
       else if (t.custom === "divider") insertDivider();
-      else document.execCommand(t.cmd, false, t.value || null);
+      else if (t.custom === "link") {
+        insertLink(content);
+        return; // insertLink manages its own focus (modal steals it first)
+      } else document.execCommand(t.cmd, false, t.value || null);
       content.focus();
     });
     toolbar.appendChild(btn);
   }
+
+  // Velikost textu — jako v barvě/zvýrazňovači: tlačítko otevře popover
+  // s předvolbami místo volného číselného vstupu, ať se to nerozjede na
+  // desítky náhodných velikostí v jedné poznámce.
+  const sizeWrap = document.createElement("div");
+  sizeWrap.className = "editor-color-wrap";
+  const sizeBtn = document.createElement("button");
+  sizeBtn.type = "button";
+  sizeBtn.title = "Velikost textu";
+  sizeBtn.textContent = "Aa";
+  sizeBtn.style.fontWeight = "700";
+  sizeBtn.addEventListener("mousedown", (e) => e.preventDefault());
+  const sizePopover = document.createElement("div");
+  sizePopover.className = "editor-color-popover hidden";
+  sizePopover.style.display = "flex";
+  sizePopover.style.flexDirection = "column";
+  sizePopover.style.gap = "2px";
+  sizePopover.style.minWidth = "72px";
+  sizePopover.innerHTML = FONT_SIZES.map(
+    (px) => `<button type="button" class="size-swatch" data-size="${px}" style="text-align:left;padding:5px 8px;font-size:${Math.min(px, 20)}px;">${px}px</button>`
+  ).join("");
+  sizeBtn.addEventListener("click", () => sizePopover.classList.toggle("hidden"));
+  sizePopover.querySelectorAll("button").forEach((b) => {
+    b.addEventListener("mousedown", (e) => e.preventDefault());
+    b.addEventListener("click", () => {
+      applyFontSize(content, Number(b.dataset.size));
+      sizePopover.classList.add("hidden");
+      content.focus();
+    });
+  });
+  document.addEventListener("click", (e) => {
+    if (!sizeWrap.contains(e.target)) sizePopover.classList.add("hidden");
+  });
+  sizeWrap.appendChild(sizeBtn);
+  sizeWrap.appendChild(sizePopover);
+  toolbar.appendChild(sizeWrap);
+
 
   // Curated, contrast-safe text colors instead of a free-form color picker —
   // an arbitrary pick (e.g. white) reads fine in dark mode but disappears
