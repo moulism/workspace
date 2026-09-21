@@ -1,4 +1,4 @@
-import { Events, Todos, Goals, Folders } from "../db.js";
+import { Events, Todos, Goals, Folders, FinanceTransactions, JournalCycles } from "../db.js";
 import { escapeHtml, fmtTime, fmtDate, todayIso, CATEGORY_COLORS } from "../ui.js";
 import { toastError } from "../toast.js";
 import { hasGoogle, Gmail } from "../google.js";
@@ -11,52 +11,79 @@ function cssVar(name) {
 let weekChart = null;
 let goalCharts = [];
 
+// The dashboard is the mission-control hub, not "one more page under the
+// sidebar" — a dense asymmetric bento grid you can launch every section
+// from, instead of a uniform stack of equal-width cards.
 export async function render(container) {
   container.innerHTML = `
-    <div class="grid grid-2" style="margin-bottom:16px;">
-      <div class="card dash-clock-card" id="clock-card">
-        <div class="dash-clock-ring">
-          <div class="dash-clock-inner">
-            <div class="faint" id="clock-date"></div>
-            <div class="dash-clock-time" id="clock-time"></div>
-            <div class="faint dash-clock-doy" id="clock-doy"></div>
+    <div class="hub-grid">
+      <div class="card hub-hero" style="grid-column: span 5; grid-row: span 2;">
+        <div class="faint">VÍTEJ ZPĚT, MASTER M</div>
+        <div class="hub-hero-top">
+          <div class="dash-clock-ring">
+            <div class="dash-clock-inner">
+              <div class="faint" id="clock-date"></div>
+              <div class="dash-clock-time" id="clock-time"></div>
+              <div class="faint dash-clock-doy" id="clock-doy"></div>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="card">
-        <div class="faint" style="margin-bottom:6px;">// RYCHLÝ PŘÍKAZ</div>
-        <form id="quick-todo-form" style="display:flex;gap:8px;">
-          <input type="text" id="quick-todo-input" placeholder="Co je potřeba udělat?" />
-          <button class="btn btn-primary" type="submit">Přidat</button>
-        </form>
         <div class="dash-kpi-row" id="dash-kpis"></div>
+        <form id="quick-todo-form" class="hub-quick-form">
+          <input type="text" id="quick-todo-input" placeholder="Rychlý úkol…" />
+          <button class="btn btn-primary btn-sm" type="submit">Přidat</button>
+        </form>
       </div>
-    </div>
 
-    <div class="card" style="margin-bottom:16px;">
-      <div class="section-header" style="margin-bottom:10px;"><h2 style="font-size:15px;">Aktivita — příštích 7 dní</h2></div>
-      <div class="dash-chart-box"><canvas id="dash-week-chart"></canvas></div>
-    </div>
+      <div class="card" style="grid-column: span 7;">
+        <div class="section-header" style="margin-bottom:10px;"><h2 style="font-size:15px;">// SYSTÉMY</h2></div>
+        <div class="hub-sys-grid" id="hub-systems"></div>
+      </div>
 
-    <div class="card" style="margin-bottom:16px;">
-      <div class="section-header" style="margin-bottom:10px;"><h2 style="font-size:15px;">Aktivní cíle</h2></div>
-      <div class="dash-goal-rings" id="dash-goal-rings"></div>
-    </div>
+      <div class="card" style="grid-column: span 7;">
+        <div class="section-header" style="margin-bottom:10px;"><h2 style="font-size:15px;">Aktivita — příštích 7 dní</h2></div>
+        <div class="dash-chart-box"><canvas id="dash-week-chart"></canvas></div>
+      </div>
 
-    <div class="grid grid-3">
-      <div class="card">
-        <div class="section-header" style="margin-bottom:10px;"><h2 style="font-size:15px;">Dnes v kalendáři</h2></div>
+      <div class="card hub-tile" style="grid-column: span 5;">
+        <div class="section-header" style="margin-bottom:10px;"><h2 style="font-size:15px;">🎯 Cíle</h2></div>
+        <div class="dash-goal-rings" id="dash-goal-rings"></div>
+      </div>
+
+      <a class="card hub-tile" href="#/calendar" style="grid-column: span 4;">
+        <h3 style="margin-top:0;font-size:14px;">📅 Kalendář</h3>
         <div id="today-events" class="list"></div>
-      </div>
-      <div class="card">
-        <div class="section-header" style="margin-bottom:10px;"><h2 style="font-size:15px;">Úkoly ke splnění</h2></div>
+      </a>
+
+      <div class="card hub-tile" style="grid-column: span 4;">
+        <h3 style="margin-top:0;font-size:14px;">✅ Úkoly</h3>
         <div id="due-todos" class="list"></div>
+        <a href="#/todos" class="action" style="display:block;margin-top:8px;font-size:12px;">→ Všechny úkoly</a>
       </div>
-      <div class="card" id="gmail-card"></div>
+
+      <a class="card hub-tile" href="#/finance" style="grid-column: span 4;">
+        <h3 style="margin-top:0;font-size:14px;">💰 Finance</h3>
+        <div id="hub-finance"></div>
+      </a>
+
+      <a class="card hub-tile" href="#/journal" style="grid-column: span 4;">
+        <h3 style="margin-top:0;font-size:14px;">📗 Successful Journal</h3>
+        <div id="hub-journal"></div>
+      </a>
+
+      <div class="card" id="gmail-card" style="grid-column: span 8;"></div>
+
+      <a class="card hub-tile-simple" href="#/notes"><span class="hub-tile-ic">📝</span>Poznámky</a>
+      <a class="card hub-tile-simple" href="#/diary"><span class="hub-tile-ic">📔</span>Deník</a>
+      <a class="card hub-tile-simple" href="#/gym"><span class="hub-tile-ic">🏋️</span>Gym</a>
+      <a class="card hub-tile-simple" href="#/meals"><span class="hub-tile-ic">🍽️</span>Jídelníček</a>
+      <a class="card hub-tile-simple" href="#/recipes"><span class="hub-tile-ic">📖</span>Recepty</a>
+      <a class="card hub-tile-simple" href="#/shopping"><span class="hub-tile-ic">🛒</span>Nákupy</a>
     </div>
   `;
 
   startClock(container);
+  renderSystems(container);
 
   container.querySelector("#quick-todo-form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -79,8 +106,26 @@ export async function render(container) {
     loadGoals(container, stats),
     loadGmail(container),
     loadWeekChart(container),
+    loadFinanceTile(container),
+    loadJournalTile(container),
   ]);
   renderKpis(container, stats);
+}
+
+function renderSystems(container) {
+  const box = container.querySelector("#hub-systems");
+  if (!box) return;
+  const rows = [
+    { label: "Databáze", status: "on", detail: "Supabase · aktivní" },
+    { label: "Gmail", status: hasGoogle() ? "on" : "off", detail: hasGoogle() ? "připojeno" : "nepřipojeno" },
+    { label: "Kalendář", status: "on", detail: "synchronizováno" },
+    { label: "AI asistent", status: "pending", detail: "připravuje se" },
+  ];
+  box.innerHTML = rows
+    .map(
+      (r) => `<div class="hub-sys-row"><span class="hub-sys-dot ${r.status}"></span><span class="l">${escapeHtml(r.label)}</span><span class="s">${escapeHtml(r.detail)}</span></div>`
+    )
+    .join("");
 }
 
 function startClock(container) {
@@ -134,15 +179,18 @@ async function loadTodayEvents(container, stats) {
       box.innerHTML = `<div class="faint">Dnes žádné události.</div>`;
       return;
     }
+    // The whole tile is already a link to #/calendar, so these are plain
+    // rows (not their own links) — no nested <a> inside <a>.
     box.innerHTML = events
+      .slice(0, 4)
       .map(
-        (e) => `<a class="list-item" href="#/calendar">
+        (e) => `<div class="list-item">
           <span class="dot" style="background:${(e.folder_id && folderColor[e.folder_id]) || CATEGORY_COLORS[e.category] || "#6b6a68"}"></span>
           <div class="grow">
             <div class="title truncate">${escapeHtml(e.title)}</div>
             <div class="faint">${e.all_day ? "celý den" : fmtTime(e.start_at)}${e.location ? " · " + escapeHtml(e.location) : ""}</div>
           </div>
-        </a>`
+        </div>`
       )
       .join("");
   } catch (e) {
@@ -164,7 +212,7 @@ async function loadDueTodos(container, stats) {
       return;
     }
     box.innerHTML = relevant
-      .slice(0, 6)
+      .slice(0, 4)
       .map((t) => {
         const overdue = t.due_date && t.due_date < today;
         const isToday = t.due_date === today;
@@ -199,7 +247,7 @@ async function loadGoals(container, stats) {
     stats.goalsCount = goals.length;
     stats.goalsAvg = goals.length ? Math.round(goals.reduce((s, g) => s + (g.progress || 0), 0) / goals.length) : 0;
     if (!goals.length) {
-      box.innerHTML = `<div class="faint">Zatím žádné aktivní cíle.</div>`;
+      box.innerHTML = `<div class="faint">Zatím žádné aktivní cíle. <a href="#/goals" class="action">Přidat cíl</a></div>`;
       return;
     }
     const shown = goals.slice(0, 6);
@@ -225,6 +273,39 @@ async function loadGoals(container, stats) {
         );
       });
     }
+  } catch (e) {
+    box.innerHTML = `<div class="faint">Nepodařilo se načíst.</div>`;
+  }
+}
+
+async function loadFinanceTile(container) {
+  const box = container.querySelector("#hub-finance");
+  if (!box) return;
+  try {
+    const monthStart = todayIso().slice(0, 7) + "-01";
+    const tx = await FinanceTransactions.list({ from: monthStart, to: todayIso() });
+    const total = tx.reduce((s, t) => s + Number(t.amount), 0);
+    box.innerHTML = `<div style="font-size:22px;font-weight:700;font-family:var(--font-mono);">${total.toLocaleString("cs-CZ")} Kč</div><div class="faint">útrata tento měsíc</div>`;
+  } catch (e) {
+    box.innerHTML = `<div class="faint">Nepodařilo se načíst.</div>`;
+  }
+}
+
+async function loadJournalTile(container) {
+  const box = container.querySelector("#hub-journal");
+  if (!box) return;
+  try {
+    const cycle = await JournalCycles.getActive();
+    if (!cycle) {
+      box.innerHTML = `<div class="faint">Zatím nenastaveno — otevři a spusť dotazník.</div>`;
+      return;
+    }
+    const start = new Date(cycle.start_date + "T00:00:00");
+    const end = new Date(cycle.end_date + "T00:00:00");
+    const now = new Date();
+    const len = Math.round((end - start) / 86400000) + 1;
+    const idx = Math.min(Math.max(Math.round((now - start) / 86400000) + 1, 1), len);
+    box.innerHTML = `<div style="font-size:15px;font-weight:600;" class="truncate">${escapeHtml(cycle.title)}</div><div class="faint">Den ${idx} / ${len}</div>`;
   } catch (e) {
     box.innerHTML = `<div class="faint">Nepodařilo se načíst.</div>`;
   }
