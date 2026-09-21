@@ -220,7 +220,16 @@ function moveHighlight() {
     return;
   }
   navHighlight.style.opacity = "1";
-  navHighlight.style.transform = `translateY(${active.offsetTop}px)`;
+  // getBoundingClientRect (not offsetTop) on purpose: offsetTop is relative
+  // to the nearest *positioned* ancestor, and .nav-group is now
+  // position:relative (for its console-module accent tab), which made
+  // active.offsetTop resolve against the wrong element — the highlight
+  // pill landed on whichever item happened to be near that same offset
+  // inside ITS OWN group, not the actually active one. Rect math is
+  // immune to which ancestor happens to be positioned.
+  const navRect = sidebarNav.getBoundingClientRect();
+  const activeRect = active.getBoundingClientRect();
+  navHighlight.style.transform = `translateY(${activeRect.top - navRect.top}px)`;
   navHighlight.style.height = active.offsetHeight + "px";
 }
 

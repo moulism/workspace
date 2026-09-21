@@ -164,6 +164,38 @@ const SKILLS = [
   { title: "Kompoundovaný efekt návyků", body: "Malé denní akce — 10 stran čtení, jeden těžký hovor, 1 % zlepšení — se v moment X nezdají důležité. Po měsících a letech ale tvoří exponenciální rozdíl mezi průměrným a výjimečným výsledkem." },
 ];
 
+// Onboarding wizard: suggested daily habits to tap into a routine, the
+// three discipline tones, and cycle-length choices. Built once here so
+// both the wizard and the header discipline badge can share labels.
+const SUGGESTED_HABITS = [
+  { name: "Sprcha", icon: "🚿" },
+  { name: "Ustlat postel", icon: "🛏️" },
+  { name: "Snídaně", icon: "🍳" },
+  { name: "Sklenice vody hned po probuzení", icon: "💧" },
+  { name: "Cvičení / trénink", icon: "🏋️" },
+  { name: "10 minut čtení", icon: "📖" },
+  { name: "Meditace / dech", icon: "🧘" },
+  { name: "Bez telefonu prvních 30 minut", icon: "📵" },
+  { name: "Naplánovat den", icon: "🗓️" },
+  { name: "Žádné sladké", icon: "🚫" },
+  { name: "Spát před 23:00", icon: "🌙" },
+  { name: "Poděkovat někomu / vděčnost", icon: "🙏" },
+];
+
+const DISCIPLINE_LEVELS = [
+  { id: "gentle", icon: "🙂", label: "Mírně", desc: "Jemné připomínky, žádný tlak. Jde hlavně o konzistenci v čase, vynechání není drama." },
+  { id: "balanced", icon: "⚖️", label: "Vyrovnaně", desc: "Zdravá rovnováha — chci si to hlídat, ale nejde o vojnu." },
+  { id: "strict", icon: "🔥", label: "Přísně", desc: "Žádné výmluvy. Nikdy dvakrát za sebou nevynechat — tvrdý jazyk k sobě samému." },
+];
+const DISCIPLINE_LABELS = Object.fromEntries(DISCIPLINE_LEVELS.map((d) => [d.id, `${d.icon} ${d.label}`]));
+
+const CYCLE_LENGTHS = [
+  { days: 30, label: "30 dní" },
+  { days: 60, label: "60 dní" },
+  { days: 90, label: "90 dní" },
+  { days: 180, label: "180 dní" },
+];
+
 function weekIndexOf(dateIso) {
   const monday = mondayOfWeek(dateIso);
   const d = new Date(monday + "T00:00:00");
@@ -254,24 +286,17 @@ export async function render(container) {
   container.innerHTML = `<div class="center" style="padding:60px;"><div class="spinner"></div></div>`;
   try {
     state.cycle = await JournalCycles.getActive();
-    if (!state.cycle) {
-      // Deník se chová jako už existující kniha — žádné "založení" navíc,
-      // první otevření si tiše připraví aktivní 90denní cyklus na pozadí.
-      state.cycle = await JournalCycles.create({
-        title: "Můj deník",
-        start_date: todayIso(),
-        end_date: addDaysIso(todayIso(), 89),
-        theme: null,
-        goals: [],
-        status: "active",
-      });
-    }
   } catch (e) {
     toastError(e);
   }
 
   if (!state.cycle) {
-    renderNoCycle(container);
+    // No more silent blank-cycle auto-create — a generic empty cycle with
+    // no habits is exactly what made this feel like "just another notes
+    // app". First-ever open (or after finishing/archiving a cycle) goes
+    // through a short Q&A wizard instead, so what comes out the other end
+    // is actually built around this person's goals and habits.
+    renderOnboarding(container);
     return;
   }
 
@@ -285,20 +310,19 @@ export async function render(container) {
   renderShell(container);
 }
 
-function renderNoCycle(container) {
+function renderOnboarding(container) {
   container.innerHTML = `
     <div class="empty-state">
       <div class="big">📗</div>
       <h2 style="margin:6px 0;">Successful Journal</h2>
       <p class="muted" style="max-width:460px;margin:0 auto 18px;">
-        90 dní disciplíny, ne motivace. Ráno si odškrtneš rutinu a nastavíš priority, večer si upřímně zhodnotíš den, jednou týdně uděláš review. Každý den tě čeká fakt na zamyšlení, každý týden nová dovednost. A celou dobu máš na jednom místě přehled, jak jsi na tom s financemi, cíli a úkoly — žádné výmluvy, že jsi „to neviděl".
-        Začni nový 90denní cyklus a rozjeď to.
+        Než začneš, pár otázek — co chceš, na jak dlouho, jaké návyky chceš každý den zaškrtávat a jak přísně na sebe chceš jít. Z odpovědí ti rovnou postavím deník na míru, místo abys každý den vypisoval to samé do prázdna.
       </p>
-      <button class="btn btn-primary" id="start-cycle-btn">+ Nový 90denní cyklus</button>
+      <button class="btn btn-primary" id="start-cycle-btn">Spustit dotazník (2 min)</button>
       <div style="margin-top:18px;" id="past-cycles"></div>
     </div>
   `;
-  container.querySelector("#start-cycle-btn").addEventListener("click", () => openCycleModal(container));
+  container.querySelector("#start-cycle-btn").addEventListener("click", () => openOnboardingWizard(container, null));
   renderPastCyclesList(container.querySelector("#past-cycles"), { onlyPast: true });
 }
 
@@ -354,11 +378,12 @@ function renderShell(container) {
     <div class="sj-header card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
         <div>
-          <div class="faint">CYKLUS</div>
+          <div class="faint">CYKLUS${cycle.discipline ? " · " + (DISCIPLINE_LABELS[cycle.discipline] || "") : ""}</div>
           <h2 style="margin:2px 0 2px;">${escapeHtml(cycle.title)}</h2>
           ${cycle.theme ? `<div class="muted">${escapeHtml(cycle.theme)}</div>` : ""}
         </div>
-        <div style="display:flex;gap:8px;">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-sm" id="wizard-cycle-btn">Nastavit znovu</button>
           <button class="btn btn-sm" id="edit-cycle-btn">Upravit cyklus</button>
         </div>
       </div>
@@ -382,6 +407,7 @@ function renderShell(container) {
   `;
 
   container.querySelector("#edit-cycle-btn").addEventListener("click", () => openCycleModal(container, cycle));
+  container.querySelector("#wizard-cycle-btn").addEventListener("click", () => openOnboardingWizard(container, cycle));
   container.querySelectorAll("[data-tab]").forEach((b) =>
     b.addEventListener("click", () => {
       state.tab = b.dataset.tab;
@@ -593,7 +619,8 @@ async function renderTodayTab(container, body) {
         if (!total) {
           return `<div class="card" style="margin-bottom:16px;">
             <h3 style="margin-top:0;">☀️ Ranní rutina</h3>
-            <div class="faint">Cyklus zatím nemá žádnou ranní rutinu. Přidej ji v „Upravit cyklus" — např. ustlat postel, skincare, snídaně, sklenice vody…</div>
+            <div class="faint" style="margin-bottom:10px;">Tenhle cyklus zatím nemá nastavenou rutinu — projeď krátký dotazník a postavím ti ji na míru (sprcha, postel, cvičení, čtení…), ať máš hlavně co zaškrtávat, ne co vypisovat.</div>
+            <button class="btn btn-primary btn-sm" id="sj-run-wizard" type="button">Nastavit rutinu (2 min)</button>
           </div>`;
         }
         return `<div class="card" style="margin-bottom:16px;">
@@ -646,10 +673,15 @@ async function renderTodayTab(container, body) {
             .slice(0, 3)
             .map((g, i) => `<input type="text" class="sj-gratitude" data-i="${i}" placeholder="Vděčnost ${i + 1}" value="${escapeHtml(g)}" style="margin-bottom:6px;" />`)
             .join("")}
-          <label style="margin-top:10px;">Jak se dnes rozhoduješ ukázat</label>
-          <textarea id="sj-intention" rows="2" placeholder="Dnes se rozhoduji…">${escapeHtml(e.intention || "")}</textarea>
-          <label style="margin-top:10px;">Co tě dnes nejspíš srazí — a co uděláš MÍSTO toho (nepovinné)</label>
-          <textarea id="sj-obstacles" rows="2" placeholder="Co mě dnes může vykolejit a co udělám místo toho…">${escapeHtml(e.obstacles || "")}</textarea>
+          <details style="margin-top:10px;" ${e.intention || e.obstacles ? "open" : ""}>
+            <summary style="cursor:pointer;color:var(--text-muted);font-size:12.5px;">+ Přidat pár slov navíc (nepovinné)</summary>
+            <div style="margin-top:8px;">
+              <label>Jak se dnes rozhoduješ ukázat</label>
+              <textarea id="sj-intention" rows="2" placeholder="Dnes se rozhoduji…">${escapeHtml(e.intention || "")}</textarea>
+              <label style="margin-top:10px;">Co tě dnes nejspíš srazí — a co uděláš MÍSTO toho</label>
+              <textarea id="sj-obstacles" rows="2" placeholder="Co mě dnes může vykolejit a co udělám místo toho…">${escapeHtml(e.obstacles || "")}</textarea>
+            </div>
+          </details>
         </div>
 
         <div class="card">
@@ -658,10 +690,15 @@ async function renderTodayTab(container, body) {
             ${habitTotal ? `Ranní rutina: <b>${doneCount}/${habitTotal}</b> splněno.` : ""}
             ${morningDone ? ` Ráno jsi řekl, že dnešek stojí na: „${escapeHtml(priorities.filter((x) => x.trim()).join(", "))}“.` : ""}
           </div>
-          <label>Dodržel jsi to, co jsi slíbil sám sobě ráno?</label>
-          <textarea id="sj-wins" rows="2" placeholder="Dnešní výhry…">${escapeHtml(e.wins || "")}</textarea>
-          <label style="margin-top:10px;">Kde jsi dnes ubral plyn — a co uděláš zítra jinak (buď k sobě upřímný)</label>
-          <textarea id="sj-lessons" rows="2">${escapeHtml(e.lessons || "")}</textarea>
+          <details ${e.wins || e.lessons ? "open" : ""}>
+            <summary style="cursor:pointer;color:var(--text-muted);font-size:12.5px;">+ Napsat pár vět o dni (nepovinné)</summary>
+            <div style="margin-top:8px;">
+              <label>Dodržel jsi to, co jsi slíbil sám sobě ráno?</label>
+              <textarea id="sj-wins" rows="2" placeholder="Dnešní výhry…">${escapeHtml(e.wins || "")}</textarea>
+              <label style="margin-top:10px;">Kde jsi dnes ubral plyn — a co uděláš zítra jinak</label>
+              <textarea id="sj-lessons" rows="2">${escapeHtml(e.lessons || "")}</textarea>
+            </div>
+          </details>
           <label style="margin-top:10px;">Jedna věc, kterou zítra nesmíš odložit</label>
           <input type="text" id="sj-tomorrow" value="${escapeHtml(e.tomorrow_focus || "")}" />
           <label style="margin-top:10px;">Jak hodnotíš dnešní den</label>
@@ -778,6 +815,7 @@ async function renderTodayTab(container, body) {
         <div class="modal-actions"><button class="btn btn-primary" data-close>Rozumím</button></div>
       `);
     });
+    body.querySelector("#sj-run-wizard")?.addEventListener("click", () => openOnboardingWizard(container, cycle));
 
     const ttStartBtn = body.querySelector("#tt-start");
     if (ttStartBtn) {
@@ -1026,7 +1064,7 @@ async function renderHistoryTab(container, body) {
     </div>
     <button class="btn btn-primary" id="new-cycle-from-history" style="margin-top:14px;">+ Nový 90denní cyklus</button>
     `;
-    body.querySelector("#new-cycle-from-history").addEventListener("click", () => openCycleModal(container));
+    body.querySelector("#new-cycle-from-history").addEventListener("click", () => openOnboardingWizard(container, null));
     body.querySelectorAll("[data-complete]").forEach((b) =>
       b.addEventListener("click", async () => {
         await JournalCycles.update(b.dataset.complete, { status: "completed" });
@@ -1052,6 +1090,216 @@ async function renderHistoryTab(container, body) {
   } catch (e) {
     toastError(e);
   }
+}
+
+async function openOnboardingWizard(container, existingCycle) {
+  const wiz = {
+    title: existingCycle?.title && existingCycle.title !== "Můj deník" ? existingCycle.title : "",
+    identity: existingCycle?.identity_statement || "",
+    goals: (() => {
+      const g = existingCycle?.goals?.length ? [...existingCycle.goals] : [];
+      while (g.length < 3) g.push("");
+      return g;
+    })(),
+    days: existingCycle ? cycleLength(existingCycle) : 90,
+    habits: [],
+    discipline: existingCycle?.discipline || "balanced",
+  };
+  if (existingCycle) {
+    try {
+      const existingHabits = await JournalHabits.listByCycle(existingCycle.id);
+      wiz.habits = existingHabits.map((h) => ({ name: h.name, icon: h.icon || "" }));
+    } catch {}
+  }
+
+  let step = 1;
+  const TOTAL = 4;
+
+  const { el: modalEl, close } = openModal(
+    `<div class="modal-header"><h3 id="wiz-title">Nastavení Successful Journal</h3><button class="btn btn-icon btn-ghost" data-close>✕</button></div>
+     <div id="wiz-body"></div>
+     <div class="modal-actions">
+       <button class="btn" id="wiz-back">Zpět</button>
+       <button class="btn btn-primary" id="wiz-next">Další</button>
+     </div>`,
+    { large: true }
+  );
+
+  const bodyEl = modalEl.querySelector("#wiz-body");
+  const titleEl = modalEl.querySelector("#wiz-title");
+  const backBtn = modalEl.querySelector("#wiz-back");
+  const nextBtn = modalEl.querySelector("#wiz-next");
+
+  function renderStep() {
+    titleEl.textContent = `Nastavení Successful Journal · Krok ${step}/${TOTAL}`;
+    backBtn.style.visibility = step === 1 ? "hidden" : "visible";
+    nextBtn.disabled = false;
+    nextBtn.textContent = step === TOTAL ? "Vytvořit deník" : "Další";
+
+    if (step === 1) {
+      bodyEl.innerHTML = `
+        <div class="faint" style="margin-bottom:10px;">Co chceš za tento cyklus dosáhnout?</div>
+        <div class="field"><label>Název cyklu (nepovinné)</label><input type="text" id="wiz-title-input" placeholder="např. Podzim 2026" value="${escapeHtml(wiz.title)}" /></div>
+        <div class="field">
+          <label>Cíle (klidně jen jeden)</label>
+          ${wiz.goals.map((g, i) => `<input type="text" class="wiz-goal" data-i="${i}" value="${escapeHtml(g)}" placeholder="Cíl ${i + 1}" style="margin-bottom:6px;" />`).join("")}
+        </div>
+        <div class="field"><label>Kým se chceš stát (nepovinné)</label><input type="text" id="wiz-identity" value="${escapeHtml(wiz.identity)}" placeholder="např. Jsem člověk, který dodržuje sliby sám sobě" /></div>
+      `;
+    } else if (step === 2) {
+      bodyEl.innerHTML = `
+        <div class="faint" style="margin-bottom:10px;">Na jak dlouho?</div>
+        <div class="toolbar">
+          ${CYCLE_LENGTHS.map((c) => `<button type="button" class="chip wiz-length ${wiz.days === c.days ? "active" : ""}" data-days="${c.days}">${c.label}</button>`).join("")}
+        </div>
+      `;
+    } else if (step === 3) {
+      bodyEl.innerHTML = `
+        <div class="faint" style="margin-bottom:10px;">Jaké návyky chceš každý den zaškrtávat? Klikni na co sedí, nebo přidej vlastní.</div>
+        <div class="toolbar" id="wiz-suggested" style="margin-bottom:14px;">
+          ${SUGGESTED_HABITS.map(
+            (h) => `<button type="button" class="chip wiz-suggest" data-name="${escapeHtml(h.name)}" data-icon="${h.icon}" ${wiz.habits.some((x) => x.name === h.name) ? "disabled" : ""}>${h.icon} ${escapeHtml(h.name)}</button>`
+          ).join("")}
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <input type="text" id="wiz-custom-habit" placeholder="Vlastní položka, např. Studovat 30 min" style="flex:1;" />
+          <button type="button" class="btn btn-sm" id="wiz-add-custom" style="flex:0 0 auto;">Přidat</button>
+        </div>
+        <div class="faint" style="margin-bottom:6px;">Vybráno (${wiz.habits.length}):</div>
+        <div class="list" id="wiz-selected">
+          ${
+            wiz.habits
+              .map((h, i) => `<div class="list-item" data-i="${i}"><div class="grow">${h.icon ? h.icon + " " : ""}${escapeHtml(h.name)}</div><button type="button" class="btn btn-icon btn-ghost btn-sm wiz-remove-habit" data-i="${i}">✕</button></div>`)
+              .join("") || `<div class="faint">Zatím nic — vyber si výše.</div>`
+          }
+        </div>
+      `;
+    } else if (step === 4) {
+      bodyEl.innerHTML = `
+        <div class="faint" style="margin-bottom:10px;">Jak přísně na sebe chceš jít?</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          ${DISCIPLINE_LEVELS.map(
+            (d) => `<label class="card" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;${wiz.discipline === d.id ? "border-color:var(--accent);" : ""}">
+              <input type="radio" name="wiz-discipline" value="${d.id}" ${wiz.discipline === d.id ? "checked" : ""} style="margin-top:3px;" />
+              <div><b>${d.icon} ${d.label}</b><div class="faint" style="margin-top:2px;">${d.desc}</div></div>
+            </label>`
+          ).join("")}
+        </div>
+      `;
+    }
+    wireStep();
+  }
+
+  function wireStep() {
+    if (step === 2) {
+      bodyEl.querySelectorAll(".wiz-length").forEach((b) =>
+        b.addEventListener("click", () => {
+          wiz.days = Number(b.dataset.days);
+          bodyEl.querySelectorAll(".wiz-length").forEach((x) => x.classList.toggle("active", x === b));
+        })
+      );
+    } else if (step === 3) {
+      bodyEl.querySelectorAll(".wiz-suggest").forEach((b) =>
+        b.addEventListener("click", () => {
+          wiz.habits.push({ name: b.dataset.name, icon: b.dataset.icon });
+          renderStep();
+        })
+      );
+      bodyEl.querySelector("#wiz-add-custom").addEventListener("click", () => {
+        const inp = bodyEl.querySelector("#wiz-custom-habit");
+        const name = inp.value.trim();
+        if (!name) return;
+        wiz.habits.push({ name, icon: "✅" });
+        renderStep();
+      });
+      bodyEl.querySelector("#wiz-custom-habit").addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") {
+          ev.preventDefault();
+          bodyEl.querySelector("#wiz-add-custom").click();
+        }
+      });
+      bodyEl.querySelectorAll(".wiz-remove-habit").forEach((b) =>
+        b.addEventListener("click", () => {
+          wiz.habits.splice(Number(b.dataset.i), 1);
+          renderStep();
+        })
+      );
+    } else if (step === 4) {
+      bodyEl.querySelectorAll('input[name="wiz-discipline"]').forEach((r) =>
+        r.addEventListener("change", () => {
+          wiz.discipline = r.value;
+        })
+      );
+    }
+  }
+
+  function maybeCollectStep1() {
+    if (step !== 1) return;
+    wiz.title = bodyEl.querySelector("#wiz-title-input")?.value.trim() || "";
+    wiz.identity = bodyEl.querySelector("#wiz-identity")?.value.trim() || "";
+    wiz.goals = [...bodyEl.querySelectorAll(".wiz-goal")].map((i) => i.value.trim());
+  }
+
+  backBtn.addEventListener("click", () => {
+    if (step <= 1) return;
+    step -= 1;
+    renderStep();
+  });
+
+  nextBtn.addEventListener("click", async () => {
+    maybeCollectStep1();
+    if (step < TOTAL) {
+      step += 1;
+      renderStep();
+      return;
+    }
+    nextBtn.disabled = true;
+    nextBtn.textContent = "Vytvářím…";
+    try {
+      const title = wiz.title || "Můj deník";
+      const goalsVal = wiz.goals.filter((g) => g.trim());
+      const start = existingCycle?.start_date || todayIso();
+      const end = addDaysIso(start, wiz.days - 1);
+      let savedCycle;
+      if (existingCycle) {
+        savedCycle = await JournalCycles.update(existingCycle.id, {
+          title,
+          identity_statement: wiz.identity || null,
+          goals: goalsVal,
+          discipline: wiz.discipline,
+          end_date: end,
+        });
+        const existingHabits = await JournalHabits.listByCycle(existingCycle.id);
+        for (const h of existingHabits) await JournalHabits.remove(h.id);
+      } else {
+        const current = await JournalCycles.getActive();
+        if (current) await JournalCycles.update(current.id, { status: "archived" });
+        savedCycle = await JournalCycles.create({
+          title,
+          start_date: start,
+          end_date: end,
+          identity_statement: wiz.identity || null,
+          goals: goalsVal,
+          standards: [],
+          discipline: wiz.discipline,
+          status: "active",
+        });
+      }
+      for (let i = 0; i < wiz.habits.length; i++) {
+        const h = wiz.habits[i];
+        await JournalHabits.create({ cycle_id: savedCycle.id, name: h.name, icon: h.icon || null, sort_order: i });
+      }
+      toast("Tvůj Successful Journal je nastavený 🎉", "success");
+      close();
+      render(container);
+    } catch (err) {
+      nextBtn.disabled = false;
+      nextBtn.textContent = step === TOTAL ? "Vytvořit deník" : "Další";
+      toastError(err);
+    }
+  });
+
+  renderStep();
 }
 
 async function openCycleModal(container, cycle) {
@@ -1088,6 +1336,12 @@ async function openCycleModal(container, cycle) {
      </div>
      <div class="field"><label>Zaměření / vize cyklu</label><textarea id="cyc-theme" rows="2" placeholder="Na co se v těchto 90 dnech soustředím…">${escapeHtml(cycle?.theme || "")}</textarea></div>
      <div class="field"><label>Kým se chci stát (identita, ne jen výsledek)</label><textarea id="cyc-identity" rows="2" placeholder="např. Jsem člověk, který dodržuje sliby sám sobě…">${escapeHtml(cycle?.identity_statement || "")}</textarea></div>
+     <div class="field">
+       <label>Jak přísně na sebe chceš jít</label>
+       <select id="cyc-discipline">
+         ${DISCIPLINE_LEVELS.map((d) => `<option value="${d.id}" ${(cycle?.discipline || "balanced") === d.id ? "selected" : ""}>${d.icon} ${d.label}</option>`).join("")}
+       </select>
+     </div>
      <div class="field">
        <label>Cíle cyklu</label>
        <div id="cyc-goals">
@@ -1141,6 +1395,7 @@ async function openCycleModal(container, cycle) {
     const endDate = modalEl.querySelector("#cyc-end").value || addDaysIso(startDate, 89);
     const theme = modalEl.querySelector("#cyc-theme").value.trim() || null;
     const identityStatement = modalEl.querySelector("#cyc-identity").value.trim() || null;
+    const discipline = modalEl.querySelector("#cyc-discipline").value;
     const goalsVal = [...modalEl.querySelectorAll(".cyc-goal")].map((i) => i.value.trim()).filter(Boolean);
     const standardsVal = [...modalEl.querySelectorAll(".cyc-standard")].map((i) => i.value.trim()).filter(Boolean);
     const habitNames = [...modalEl.querySelectorAll(".cyc-habit-name")];
@@ -1159,10 +1414,11 @@ async function openCycleModal(container, cycle) {
           identity_statement: identityStatement,
           goals: goalsVal,
           standards: standardsVal,
+          discipline,
           status: "active",
         });
       } else {
-        savedCycle = await JournalCycles.update(cycle.id, { title, theme, identity_statement: identityStatement, goals: goalsVal, standards: standardsVal });
+        savedCycle = await JournalCycles.update(cycle.id, { title, theme, identity_statement: identityStatement, goals: goalsVal, standards: standardsVal, discipline });
       }
 
       if (isNew) {
