@@ -1,4 +1,4 @@
-import { JournalCycles, JournalHabits, JournalEntries, JournalHabitLogs, JournalWeeklyReviews, Events, Todos } from "../db.js";
+import { JournalCycles, JournalHabits, JournalEntries, JournalHabitLogs, JournalWeeklyReviews, Events, Todos, FinanceTransactions, Goals } from "../db.js";
 import { escapeHtml, openModal, confirmDialog, todayIso, fmtDate } from "../ui.js";
 import { toast, toastError } from "../toast.js";
 import { expandRecurrence } from "../recurrence.js";
@@ -80,6 +80,78 @@ const QUOTES = [
   { t: "Nikdy neselhávej dvakrát za sebou — jedno vynechání je nehoda, dvě je nový (špatný) návyk." },
   { t: "Nejde o to, jak dobrý jsi dnes. Jde o to, kým se staneš za rok stejné kázně." },
 ];
+
+// Fakt dne — krátká zajímavost z byznysu, psychologie, financí a vědy,
+// jedna denně (podle dne v roce, stejně jako citát).
+const FACTS = [
+  "Multitasking ve skutečnosti neexistuje — mozek jen rychle přepíná mezi úkoly a každé přepnutí tě stojí čas i pozornost.",
+  "Podle výzkumů trvá v průměru 66 dní, než se nová činnost stane automatickým návykem — ne 21 dní, jak se často traduje.",
+  "Parkinsonův zákon: práce se vždy natáhne tak, aby vyplnila čas, který jí vyhradíš.",
+  "Lidé podceňují, jak dlouho jim úkol zabere — říká se tomu plánovací klam (planning fallacy).",
+  "Krátká 10minutová procházka dokáže zlepšit náladu na několik hodin.",
+  "Lidé, kteří si cíle fyzicky zapisují, je podle výzkumů dosahují výrazně častěji než ti, co je mají jen v hlavě.",
+  "Přes 90 % milionářů v USA vlastní nemovitost — realitní trh je historicky nejběžnější cesta k budování majetku.",
+  "Apple, Disney i Hewlett-Packard byly založeny v garáži.",
+  "Amazon začínal jako internetové knihkupectví — teprve později se z něj stal obchod se vším.",
+  "Složený úrok znamená, že vyděláváš i na úrocích z minulých let — proto je ve financích čas důležitější než výše počáteční investice.",
+  "Airbnb odmítlo pět investorů, než se z něj stala firma za desítky miliard dolarů.",
+  "Firmy založené během recese mají často výhodu — méně konkurence, nižší náklady a víc volných talentů.",
+  "Nejstarší firma světa, japonská stavební firma Kongō Gumi, fungovala nepřetržitě přes 1400 let.",
+  "Lidské tělo si vymění většinu svých buněk zhruba jednou za 7–10 let.",
+  "Med je jedna z mála potravin, která teoreticky nikdy nezkazí — archeologové našli jedlý med starý přes 3000 let.",
+  "Chobotnice mají tři srdce a modrou krev.",
+  "Z vesmíru pouhým okem prakticky nejde rozeznat žádnou lidskou stavbu — Velká čínská zeď je jen mýtus, ne fakt.",
+  "Studená sprcha ráno zvyšuje hladinu noradrenalinu a může krátkodobě zlepšit pozornost a náladu.",
+  "Warren Buffett stále bydlí v domě, který koupil v roce 1958 za 31 500 dolarů.",
+  "Většina úspěšných lidí čte podstatně víc knih než průměrná populace — čtení je jedna z nejlevnějších forem vzdělávání, jaká existuje.",
+  "Netflix původně půjčoval DVD poštou — na streamovací model přešel až o osm let později.",
+  "Sardinie, Okinawa a Nikoya patří mezi tzv. „modré zóny" — místa s nejvyšším podílem lidí, kteří se dožívají přes 100 let, a spojuje je hlavně pohyb a komunita, ne diety.",
+  "Průměrný člověk stráví kontrolou telefonu přes 3 hodiny denně — to je přes 45 dní v roce.",
+  "Psaní rukou (ne na klávesnici) zlepšuje zapamatování informací — aktivuje víc oblastí mozku najednou.",
+  "Steve Jobs nosil každý den stejné oblečení, aby ušetřil mentální kapacitu na důležitější rozhodnutí.",
+  "Nejvíc mléčné čokolády na hlavu ročně sní Švýcarsko — přes 8 kg na osobu.",
+  "Vosí hnízda i včelí plástve jsou postavené v přesných šestiúhelnících — nejefektivnějším tvaru z hlediska materiálu a pevnosti.",
+  "80 % úspěchu podle Pareto principu pochází jen z 20 % úsilí — otázka je, jestli víš, které je to 20 %.",
+  "První iPhone v roce 2007 neměl žádné aplikace třetích stran — App Store přišel až o rok později.",
+  "Lidský mozek spotřebuje asi 20 % veškeré energie těla, přestože tvoří jen 2 % tělesné hmotnosti.",
+];
+
+function factOfDay(dateIso) {
+  const d = new Date(dateIso + "T00:00:00");
+  const start = new Date(d.getFullYear(), 0, 0);
+  const dayOfYear = Math.floor((d - start) / 86400000);
+  return FACTS[dayOfYear % FACTS.length];
+}
+
+// Dovednost týdne — krátká praktická lekce, jedna na celý (kalendářní) týden.
+const SKILLS = [
+  { title: "Pravidlo dvou minut", body: "Pokud ti úkol zabere méně než 2 minuty, udělej ho hned místo odkládání na později. Eliminuješ tím spoustu drobného mentálního balastu, který se jinak hromadí a rozptyluje tě. Zkus to dnes na e-mailech a zprávách." },
+  { title: "Eisenhowerova matice", body: "Rozděl úkoly do čtyř kvadrantů: důležité+naléhavé (udělej hned), důležité+nenaléhavé (naplánuj), nenaléhavé pro tebe ale důležité pro někoho jiného (deleguj), nedůležité+nenaléhavé (zruš). Většina lidí tráví čas na naléhavém, ale nedůležitém — zkus si takhle rozdělit dnešní todo list." },
+  { title: "Time blocking", body: "Místo volného seznamu úkolů si napevno naplánuj bloky času v kalendáři na konkrétní práci, ne jen na schůzky. Co není v kalendáři, se často nestane. Zkus si zítřek naplánovat po hodinových blocích." },
+  { title: "1% zlepšení denně", body: "Není potřeba zlepšit se o 100 % najednou — stačí 1 % denně a po roce jsi zhruba 37× lepší. Zaměř se na malé, opakovatelné zlepšení systému, ne na jednorázový velký skok." },
+  { title: "Pomodoro technika", body: "25 minut soustředěné práce, 5 minut pauza, po čtyřech kolech delší pauza. Mozek podává lepší výkon v ohraničených blocích s jasným koncem než při neomezené práci „donekonečna"." },
+  { title: "Sněz žábu ráno", body: "Udělej hned ráno ten nejtěžší nebo nejnepříjemnější úkol dne. Zbytek dne pak jede s pocitem úlevy a hybnou silou, místo aby ses tomu úkolu celý den vyhýbal." },
+  { title: "Rozpočet 50/30/20", body: "50 % příjmu na potřeby, 30 % na chtíče, 20 % na spoření a investice. Jednoduchý rámec, jak si automaticky rozdělit rozpočet bez složitého trackování každé koruny — zkus si tento měsíc spočítat, jak blízko jsi tomuto poměru." },
+  { title: "SMART cíle", body: "Specifický, Měřitelný, Dosažitelný, Relevantní, Časově ohraničený. „Chci zhubnout" není cíl. „Zhubnu 5 kg do konce listopadu tím, že budu 4× týdně cvičit" je. Zkus si takhle přepsat jeden ze svých cílů." },
+  { title: "Pravidlo 5 sekund", body: "Jakmile máš impuls něco udělat, odpočítej v hlavě 5-4-3-2-1 a hned jednej, než ti mozek stihne najít výmluvu. Funguje hlavně proti prokrastinaci a ranní netečnosti." },
+  { title: "Deep work", body: "Nejcennější práce vzniká v dlouhých nerušených blocích soustředění, ne v roztříštěných 10minutových okýnkách mezi notifikacemi. Vypni si na 90 minut telefon a uvidíš rozdíl v kvalitě výstupu." },
+  { title: "Klam utopených nákladů", body: "Jen proto, že jsi do něčeho už investoval čas nebo peníze, neznamená, že v tom máš pokračovat, pokud to nefunguje. Rozhoduj se podle budoucí hodnoty, ne podle minulé investice." },
+  { title: "Dávej dřív, než žádáš", body: "Lidé, kteří v networkingu nejdřív nabízejí hodnotu — pomoc, kontakt, radu — a až pak žádají o něco na oplátku, budují mnohem silnější a dlouhodobější vztahy než ti, co jdou rovnou s žádostí." },
+  { title: "Pravidlo jedné věci", body: "Než začneš cokoliv nového, zeptej se: „Jaká jedna věc by mi dnes nejvíc pohnula s cílem, aby po jejím udělání bylo všechno ostatní jednodušší nebo zbytečné?" — a udělej ji jako první." },
+  { title: "Kompoundovaný efekt návyků", body: "Malé denní akce — 10 stran čtení, jeden těžký hovor, 1 % zlepšení — se v moment X nezdají důležité. Po měsících a letech ale tvoří exponenciální rozdíl mezi průměrným a výjimečným výsledkem." },
+];
+
+function weekIndexOf(dateIso) {
+  const monday = mondayOfWeek(dateIso);
+  const d = new Date(monday + "T00:00:00");
+  const epoch = new Date(2020, 0, 6); // pondělí, jen pevný referenční bod
+  return Math.floor((d - epoch) / (7 * 86400000));
+}
+
+function skillOfWeek(dateIso) {
+  const idx = ((weekIndexOf(dateIso) % SKILLS.length) + SKILLS.length) % SKILLS.length;
+  return SKILLS[idx];
+}
 
 function quoteOfDay(dateIso) {
   const d = new Date(dateIso + "T00:00:00");
@@ -185,8 +257,8 @@ function renderNoCycle(container) {
     <div class="empty-state">
       <div class="big">📗</div>
       <h2 style="margin:6px 0;">Successful Journal</h2>
-      <p class="muted" style="max-width:420px;margin:0 auto 18px;">
-        90denní deník kázně: ráno si odškrtni svou rutinu a nastav priority, večer si upřímně zhodnoť den, sleduj šňůry a jednou týdně udělej review podle metody Full Focus Planneru.
+      <p class="muted" style="max-width:460px;margin:0 auto 18px;">
+        90 dní disciplíny, ne motivace. Ráno si odškrtneš rutinu a nastavíš priority, večer si upřímně zhodnotíš den, jednou týdně uděláš review. Každý den tě čeká fakt na zamyšlení, každý týden nová dovednost. A celou dobu máš na jednom místě přehled, jak jsi na tom s financemi, cíli a úkoly — žádné výmluvy, že jsi „to neviděl".
         Začni nový 90denní cyklus a rozjeď to.
       </p>
       <button class="btn btn-primary" id="start-cycle-btn">+ Nový 90denní cyklus</button>
@@ -301,6 +373,8 @@ async function renderTodayTab(container, body) {
   let allLogs = [];
   let todayEvents = [];
   let todayTodos = [];
+  let monthSpend = null;
+  let activeGoals = [];
   try {
     const tasks = [
       JournalEntries.getByDate(state.selectedDate),
@@ -309,14 +383,17 @@ async function renderTodayTab(container, body) {
       JournalHabitLogs.listForRange(cycle.start_date, cycle.end_date),
     ];
     if (isToday) {
+      const monthStart = state.selectedDate.slice(0, 7) + "-01";
       tasks.push(
         Events.listRange(`${state.selectedDate}T00:00:00`, `${state.selectedDate}T23:59:59`).catch(() => []),
         Events.listAllRecurring().catch(() => []),
-        Todos.list({ done: false, from: state.selectedDate, to: state.selectedDate }).catch(() => [])
+        Todos.list({ done: false, from: state.selectedDate, to: state.selectedDate }).catch(() => []),
+        FinanceTransactions.list({ from: monthStart, to: state.selectedDate }).catch(() => []),
+        Goals.list("active").catch(() => [])
       );
     }
     const results = await Promise.all(tasks);
-    const [entry, logs, entriesForCycle, logsForCycle, eventsToday, recurringMasters, todosToday] = results;
+    const [entry, logs, entriesForCycle, logsForCycle, eventsToday, recurringMasters, todosToday, monthTx, goalsActive] = results;
     state.entry = entry;
     state.habitLogs = Object.fromEntries(logs.map((l) => [l.habit_id, true]));
     allEntries = entriesForCycle || [];
@@ -327,6 +404,8 @@ async function renderTodayTab(container, body) {
       const plainToday = (eventsToday || []).filter((x) => !x.recurrence || !x.recurrence.freq || x.recurrence.freq === "none");
       const expandedToday = (recurringMasters || []).flatMap((m) => expandRecurrence(m, dayStart, dayEnd));
       todayEvents = [...plainToday, ...expandedToday];
+      monthSpend = (monthTx || []).reduce((s, t) => s + Number(t.amount), 0);
+      activeGoals = goalsActive || [];
     }
     todayTodos = todosToday || [];
   } catch (e) {
@@ -349,10 +428,25 @@ async function renderTodayTab(container, body) {
 
   const hasCode = (cycle.standards?.length || cycle.identity_statement) ? true : false;
 
+  const skill = skillOfWeek(state.selectedDate);
+
   body.innerHTML = `
     <div class="card" style="margin-bottom:16px;background:var(--accent-soft);border-color:transparent;">
       <div style="font-style:italic;">"${escapeHtml(quoteOfDay(state.selectedDate).t)}"</div>
       ${quoteOfDay(state.selectedDate).a ? `<div class="faint" style="margin-top:4px;">— ${escapeHtml(quoteOfDay(state.selectedDate).a)}</div>` : ""}
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;gap:8px;">
+        <span style="flex:0 0 auto;">🧠</span>
+        <div><span class="faint">FAKT DNE</span><div>${escapeHtml(factOfDay(state.selectedDate))}</div></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;display:flex;align-items:center;gap:12px;">
+      <div style="font-size:22px;flex:0 0 auto;">🎯</div>
+      <div class="grow">
+        <div class="faint">DOVEDNOST TÝDNE</div>
+        <b>${escapeHtml(skill.title)}</b>
+      </div>
+      <button class="btn btn-sm" id="sj-skill-open" type="button">Naučit se</button>
     </div>
 
     ${
@@ -379,11 +473,27 @@ async function renderTodayTab(container, body) {
     </div>
 
     ${
-      isToday && (todayEvents.length || todayTodos.length)
-        ? `<div class="card" style="margin-bottom:16px;display:flex;gap:18px;flex-wrap:wrap;align-items:center;">
-            <div class="faint">DNEŠNÍ REALITA</div>
-            <a href="#/calendar" class="action">📅 ${todayEvents.length} ${todayEvents.length === 1 ? "událost" : "události"} v kalendáři</a>
-            <a href="#/todos" class="action">✅ ${todayTodos.length} nesplněných úkolů na dnes</a>
+      isToday
+        ? `<div class="card" style="margin-bottom:16px;">
+            <div class="faint" style="margin-bottom:8px;">PŘEHLED — KDE PRÁVĚ STOJÍŠ</div>
+            <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center;">
+              <a href="#/calendar" class="action">📅 ${todayEvents.length} ${todayEvents.length === 1 ? "událost" : "události"} v kalendáři</a>
+              <a href="#/todos" class="action">✅ ${todayTodos.length} nesplněných úkolů na dnes</a>
+              <a href="#/finance" class="action">💰 ${(monthSpend ?? 0).toLocaleString("cs-CZ")} Kč tento měsíc</a>
+              <a href="#/goals" class="action">🏆 ${activeGoals.length} ${activeGoals.length === 1 ? "aktivní cíl" : "aktivních cílů"}</a>
+            </div>
+            ${
+              activeGoals.length
+                ? `<div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;">
+                    ${activeGoals.slice(0, 3).map((g) => `
+                      <div>
+                        <div style="display:flex;justify-content:space-between;font-size:13px;"><span>${escapeHtml(g.title)}</span><span class="faint">${g.progress}%</span></div>
+                        <div class="progress-bar" style="margin-top:2px;"><div style="width:${g.progress}%"></div></div>
+                      </div>
+                    `).join("")}
+                  </div>`
+                : ""
+            }
           </div>`
         : ""
     }
@@ -551,6 +661,13 @@ async function renderTodayTab(container, body) {
   body.querySelector("#sj-today-btn").addEventListener("click", () => {
     state.selectedDate = todayIso();
     renderTodayTab(container, body);
+  });
+  body.querySelector("#sj-skill-open").addEventListener("click", () => {
+    openModal(`
+      <div class="modal-header"><h3>🎯 ${escapeHtml(skill.title)}</h3></div>
+      <div style="white-space:pre-line;line-height:1.55;">${escapeHtml(skill.body)}</div>
+      <div class="modal-actions"><button class="btn btn-primary" data-close>Rozumím</button></div>
+    `);
   });
 }
 

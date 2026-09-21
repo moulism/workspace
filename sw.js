@@ -1,4 +1,4 @@
-const CACHE = "workspace-shell-v18";
+const CACHE = "workspace-shell-v19";
 const SHELL = [
   "./",
   "./index.html",
